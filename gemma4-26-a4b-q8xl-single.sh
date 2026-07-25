@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# gemma4-26b-a4b-q8xl-single.sh
+# gemma4-26-a4b-q8xl-single.sh
 #
 # Single-DGX-Spark controller for:
 #   unsloth/gemma-4-26B-A4B-it-GGUF
@@ -41,7 +41,10 @@ set -Eeuo pipefail
 # USER CONFIGURATION
 # ==============================================================================
 
-SCRIPT_VERSION="${SCRIPT_VERSION:-3.0.0}"
+SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"
+MODEL_LABEL="${MODEL_LABEL:-Gemma-4-26B-A4B-it (Q8_K_XL GGUF)}"
+RUNTIME_LABEL="${RUNTIME_LABEL:-llama.cpp}"
+MODEL_FEATURES="${MODEL_FEATURES:-vision · tools · thinking · MoE}"
 
 MODEL_ID="unsloth/gemma-4-26B-A4B-it-GGUF"
 
@@ -210,6 +213,42 @@ route_interface() {
 
   ip -4 route get "$ROUTE_PROBE_IP" 2>/dev/null |
     awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }'
+}
+
+# ── Branding / info ───────────────────────────────────────────────────────────
+banner() {
+  cat <<'ART'
+
+   ____   ____ __  __    ____                   _
+  |  _ \ / ___|\ \/ /   / ___| _ __   __ _ _ __| | __
+  | | | | |  _  \  /    \___ \| '_ \ / _` | '__| |/ /
+  | |_| | |_| | /  \     ___) | |_) | (_| | |  |   <
+  |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
+                              |_|
+ART
+  printf '       =[ DGX Spark Controller · v%s ]\n' "${SCRIPT_VERSION}"
+  printf '+ -- --=[ %s ]\n'   "${MODEL_LABEL}"
+  printf '+ -- --=[ %s · %s ]\n' "${RUNTIME_LABEL}" "${MODEL_FEATURES}"
+  printf '+ -- --=[ Designed by neronain · fb.com/neronain.minidev ]\n\n'
+}
+
+# Show which model this controller serves, its port, features, and whether it is up.
+info() {
+  banner
+  local ip url state
+  ip="$(detect_advertise_ip 2>/dev/null || true)"; [[ -n "$ip" ]] || ip="${API_HOST}"
+  url="http://${ip}:${API_PORT}/v1"
+  state="stopped"
+  if curl -fsS -m 2 "http://127.0.0.1:${API_PORT}/health" >/dev/null 2>&1; then
+    state="RUNNING"
+  fi
+  printf '  Model     : %s\n'            "${MODEL_LABEL}"
+  printf '  Model ID  : %s\n'            "${MODEL_ID:-${HF_REPO:-${REPO_ID:-n/a}}}"
+  printf '  Runtime   : %s\n'            "${RUNTIME_LABEL}"
+  printf '  Features  : %s\n'            "${MODEL_FEATURES}"
+  printf '  Context   : %s tokens\n'     "${MAX_MODEL_LEN:-${CTX_SIZE:-n/a}}"
+  printf '  API (v1)  : %s\n'            "${url}"
+  printf '  State     : %s  (port %s)\n\n' "${state}" "${API_PORT}"
 }
 
 detect_advertise_ip() {
@@ -1927,6 +1966,9 @@ case "$COMMAND" in
     ;;
   _serve)
     serve_foreground "$@"
+    ;;
+  info|banner)
+    info
     ;;
   network-info)
     network_info

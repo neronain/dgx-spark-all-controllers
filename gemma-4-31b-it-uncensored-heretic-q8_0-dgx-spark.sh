@@ -5,6 +5,11 @@
 # Thinking: configurable with --thinking on|off via Gemma 4 chat-template kwargs
 set -Eeuo pipefail
 
+SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"
+MODEL_LABEL="${MODEL_LABEL:-Gemma-4-31B Uncensored Heretic (Q8_0 GGUF)}"
+RUNTIME_LABEL="${RUNTIME_LABEL:-llama.cpp}"
+MODEL_FEATURES="${MODEL_FEATURES:-vision · thinking · tools · uncensored}"
+
 # ─── Model ────────────────────────────────────────────────────────────────────
 HF_REPO="${HF_REPO:-Andu-bit/gemma-4-31B-it-uncensored-heretic-GGUF}"
 MODEL_REVISION="${MODEL_REVISION:-main}"
@@ -83,6 +88,42 @@ model_size_min_bytes() {
   esac
 }
 
+# ── Branding / info ───────────────────────────────────────────────────────────
+banner() {
+  cat <<'ART'
+
+   ____   ____ __  __    ____                   _
+  |  _ \ / ___|\ \/ /   / ___| _ __   __ _ _ __| | __
+  | | | | |  _  \  /    \___ \| '_ \ / _` | '__| |/ /
+  | |_| | |_| | /  \     ___) | |_) | (_| | |  |   <
+  |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
+                              |_|
+ART
+  printf '       =[ DGX Spark Controller · v%s ]\n' "${SCRIPT_VERSION}"
+  printf '+ -- --=[ %s ]\n'   "${MODEL_LABEL}"
+  printf '+ -- --=[ %s · %s ]\n' "${RUNTIME_LABEL}" "${MODEL_FEATURES}"
+  printf '+ -- --=[ Designed by neronain · fb.com/neronain.minidev ]\n\n'
+}
+
+# Show which model this controller serves, its port, features, and whether it is up.
+info() {
+  banner
+  local ip url state
+  ip="$(detect_advertise_ip 2>/dev/null || true)"; [[ -n "$ip" ]] || ip="${API_HOST}"
+  url="http://${ip}:${API_PORT}/v1"
+  state="stopped"
+  if curl -fsS -m 2 "http://127.0.0.1:${API_PORT}/health" >/dev/null 2>&1; then
+    state="RUNNING"
+  fi
+  printf '  Model     : %s\n'            "${MODEL_LABEL}"
+  printf '  Model ID  : %s\n'            "${MODEL_ID:-${HF_REPO:-${REPO_ID:-n/a}}}"
+  printf '  Runtime   : %s\n'            "${RUNTIME_LABEL}"
+  printf '  Features  : %s\n'            "${MODEL_FEATURES}"
+  printf '  Context   : %s tokens\n'     "${MAX_MODEL_LEN:-${CTX_SIZE:-n/a}}"
+  printf '  API (v1)  : %s\n'            "${url}"
+  printf '  State     : %s  (port %s)\n\n' "${state}" "${API_PORT}"
+}
+
 detect_advertise_ip() {
   [[ -z "$ADVERTISE_IP" ]] || { printf '%s' "$ADVERTISE_IP"; return; }
   if [[ -n "$ADVERTISE_INTERFACE" ]]; then
@@ -139,6 +180,7 @@ parse_options() {
   case "$THINKING" in on|off) ;; *) die "Invalid --thinking value: ${THINKING} (use on or off)" ;; esac
   case "$VISION_MODE" in auto|on|off) ;; *) die "Invalid --vision value: ${VISION_MODE} (use auto, on, or off)" ;; esac
   [[ "$CTX_SIZE" =~ ^[0-9]+$ ]] && (( CTX_SIZE >= 4096 && CTX_SIZE <= 262144 )) || die "Invalid --context: ${CTX_SIZE} (use 4096..262144 for this model)"
+  [[ "$API_PORT" =~ ^[0-9]+$ ]] && (( API_PORT >= 1 && API_PORT <= 65535 )) || die "Invalid --port: ${API_PORT} (use 1..65535)"
   export CTX_SIZE API_HOST API_PORT ADVERTISE_IP ADVERTISE_INTERFACE MODEL_QUANT MODEL_FILE PARALLEL_SLOTS FLASH_ATTN SPLIT_MODE CACHE_TYPE_K CACHE_TYPE_V THINKING VISION_MODE STARTUP_TIMEOUT
 }
 
@@ -967,6 +1009,7 @@ case "${1:-help}" in
   test-image)         test_image ;;
   test-image-turn2)   test_image_turn2 ;;
   test-tools)         test_tools "${2:-required}" ;;
+  info|banner)       info ;;
   network-info)       network_info ;;
   client-config)      client_config ;;
   help|--help|-h)
