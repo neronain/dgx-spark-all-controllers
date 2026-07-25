@@ -12,6 +12,14 @@ import sys
 from typing import Any
 
 
+SCRIPT_VERSION_DECL = re.compile(r'(?m)^SCRIPT_VERSION="\$\{SCRIPT_VERSION:-[0-9]+\.[0-9]+\.[0-9]+\}"')
+BANNER_DEF = re.compile(r"(?m)^banner\(\) \{")
+INFO_DEF = re.compile(r"(?m)^info\(\) \{")
+INFO_DISPATCH = re.compile(r"(?m)^\s*info\|banner\)")
+AUTHOR_USERNAME = re.compile(r"neronain")
+# The banner credit legitimately names the author; it carries this marker.
+AUTHOR_CREDIT_MARKER = "neronain.minidev"
+CLUSTER_PROMPT = re.compile(r"(?m)^prompt_cluster_config\(\) \{")
 PURE_NUMERIC_SEPARATOR = re.compile(r"\b\d+(?:_\d+)+\b")
 PIPEFAIL_GREP_Q = re.compile(r"\|[^\n]*\bgrep\b[^\n]*-[A-Za-z]*q[A-Za-z]*")
 FIXED_API_PORT = re.compile(r'(?m)^API_PORT="(?!\$\{API_PORT:-)')
@@ -114,6 +122,42 @@ def audit_file(path: Path) -> dict[str, Any]:
             "kind": "missing-network-selection",
             "line": None,
             "detail": "Missing network-info or route-based advertised IP selection",
+        })
+
+    if not SCRIPT_VERSION_DECL.search(text):
+        findings.append({
+            "severity": "warning",
+            "kind": "missing-script-version",
+            "line": None,
+            "detail": 'No overridable SCRIPT_VERSION="${SCRIPT_VERSION:-X.Y.Z}"',
+        })
+
+    if not (BANNER_DEF.search(text) and INFO_DEF.search(text)
+            and INFO_DISPATCH.search(text)):
+        findings.append({
+            "severity": "warning",
+            "kind": "missing-banner-info",
+            "line": None,
+            "detail": "Missing banner()/info() or the info|banner) dispatch entry",
+        })
+
+    for number, line in enumerate(text.splitlines(), start=1):
+        if AUTHOR_CREDIT_MARKER in line:
+            continue
+        if AUTHOR_USERNAME.search(line):
+            findings.append({
+                "severity": "warning",
+                "kind": "hard-coded-author-username",
+                "line": number,
+                "detail": "Hard-coded username; default to ${USER:-$(id -un)}",
+            })
+
+    if is_stacked and not CLUSTER_PROMPT.search(text):
+        findings.append({
+            "severity": "warning",
+            "kind": "missing-cluster-prompt",
+            "line": None,
+            "detail": "Stacked controller has no prompt_cluster_config()",
         })
 
     for match in DIRECT_FIRST_IP.finditer(text):

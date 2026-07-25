@@ -1,6 +1,10 @@
-# DGX Spark Model Deployer Skill v3.0.0
+# DGX Spark Model Deployer Skill v3.1.0
 
-The included team skill pack supports:
+Designed by neronain · <https://www.facebook.com/neronain.minidev>
+
+This repository ships controllers that are meant to be **used directly** on a DGX Spark, not generated per model. The skill rules below describe what every controller in the collection must satisfy.
+
+Supported clients:
 
 ```text
 Claude Code
@@ -9,7 +13,7 @@ Hermes
 Portable Agent Skills clients
 ```
 
-Version 3.0.0 adds mandatory safeguards:
+## Mandatory safeguards (from 3.0.0)
 
 ```text
 no Bash numeric underscore literals
@@ -20,4 +24,53 @@ route-based advertised IP selection
 pipefail-safe feature detection
 ```
 
-Standalone download packages are also provided separately.
+## Added in 3.1.0
+
+```text
+SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}" in every controller
+ASCII banner with a designer credit line
+info | banner command: model, model ID, runtime, features, context,
+  advertised API v1 URL, live state (probes /health) and port
+port validation 1..65535 and context validation > 0
+no hard-coded Linux username: SSH_USER defaults to ${USER:-$(id -un)}
+stacked controllers prompt for head IP, worker IP, and SSH user on
+  start/restart only, TTY-gated, Enter keeps the current value
+prompt_cluster_config() must be called immediately after the
+  MASTER_IP/WORKER_IP/SSH_USER declarations and before any variable
+  derived from them
+```
+
+## Audit rules enforced
+
+```text
+bash-syntax
+numeric-separator
+pipefail-grep-q
+fixed-single-master-ip
+non-overridable-api-port
+non-overridable-context
+missing-context-option
+missing-port-option
+missing-network-selection
+first-hostname-ip
+missing-script-version
+missing-banner-info
+hard-coded-author-username
+missing-cluster-prompt
+```
+
+Verify a whole directory of controllers:
+
+```bash
+python3 audit-controllers.py "$HOME"
+./verify-all.sh
+```
+
+Expected result for this collection:
+
+```text
+Audited 21 scripts: errors=0, warnings=0
+All 21 DGX controllers passed static validation.
+```
+
+See `skills_Strack.md` for the full stacked-deployment playbook and controller skeleton.

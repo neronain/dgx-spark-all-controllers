@@ -5,7 +5,7 @@ description: >-
   across multiple GPU nodes using Docker, vLLM, NCCL, Tensor Parallelism,
   versioned runtime caches, health checks, and repeatable controller scripts.
 version: 1.0
-reference_implementation: deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh
+reference_implementation: deepseek-v4-flash-nvfp4-stacked.sh
 language: th
 ---
 
@@ -286,19 +286,22 @@ set -Eeuo pipefail
 - หยุดเมื่อใช้ตัวแปรที่ยังไม่กำหนด
 - ตรวจจับความล้มเหลวใน pipeline
 
-แบ่งสคริปต์เป็นส่วนดังนี้:
+แบ่งสคริปต์เป็นส่วนดังนี้ (ลำดับสำคัญ ห้ามสลับข้อ 1–4):
 
 ```text
-1. Configuration
-2. Helper functions
-3. Runtime preparation
-4. Model download and verification
-5. Worker synchronization
-6. Distributed start/stop
-7. Status and diagnostics
-8. Functional tests
-9. Benchmark and stress
-10. Command dispatch
+1. Configuration + identity (SCRIPT_VERSION, label ของโมเดล, cluster nodes)
+2. Interactive cluster config (สำหรับ stacked เท่านั้น)
+3. Derived variables (path/home/ssh target/transport IP ที่คำนวณจากข้อ 1–2)
+4. Helper functions
+5. Branding: banner() + info()
+6. Runtime preparation
+7. Model download and verification
+8. Worker synchronization
+9. Distributed start/stop
+10. Status and diagnostics
+11. Functional tests
+12. Benchmark and stress
+13. Command dispatch
 ```
 
 ### 7.1 Configuration pattern
@@ -318,6 +321,17 @@ MAX_MODEL_LEN=262144 \
 GPU_MEMORY_UTILIZATION=0.82 \
 ./controller.sh start
 ```
+
+นอกจากค่า tuning แล้ว **ทุก controller ต้องประกาศ version และ label ของตัวเอง** ไว้บนสุดของไฟล์ (override ได้เช่นเดียวกัน):
+
+```bash
+SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"
+MODEL_LABEL="${MODEL_LABEL:-DeepSeek-V4-Flash (NVFP4) · 2-node}"
+RUNTIME_LABEL="${RUNTIME_LABEL:-vLLM (Docker, stacked)}"
+MODEL_FEATURES="${MODEL_FEATURES:-reasoning · tools · tool-loop · 1M ctx}"
+```
+
+Controller ทั้ง 21 ตัวใน repo นี้ standardize ที่ `SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"` เพื่อให้ audit และ verify ตรวจได้ว่าไฟล์ไหนตกรุ่น
 
 ### 7.2 Fail fast
 
@@ -339,6 +353,138 @@ GPU_MEMORY_UTILIZATION=0.82 \
 หลักการ:
 
 > ให้ล้มภายในไม่กี่วินาทีพร้อมข้อความที่แก้ได้ แทนการโหลดโมเดล 15 นาทีแล้วค่อยล้ม
+
+### 7.3 Banner และคำสั่ง `info` (บังคับ)
+
+ทุก controller ต้องมี ASCII banner สไตล์ Metasploit และคำสั่ง `info` (alias `banner`) เพื่อให้ผู้ใช้รู้ทันทีว่ากำลังถือ controller ของโมเดลอะไร เปิดพอร์ตไหน และตอนนี้ระบบขึ้นอยู่หรือไม่
+
+`info` ต้องพิมพ์อย่างน้อย:
+
+```text
+banner (ASCII art)
+DGX Spark Controller · v<SCRIPT_VERSION>
+Model     : <MODEL_LABEL>
+Model ID  : <MODEL_ID>
+Runtime   : <RUNTIME_LABEL>
+Features  : <MODEL_FEATURES>
+Context   : <MAX_MODEL_LEN> tokens
+API (v1)  : http://<advertise-ip>:<API_PORT>/v1
+State     : RUNNING | stopped  (port <API_PORT>)
+```
+
+โครงที่ใช้จริง:
+
+```bash
+banner() {
+  cat <<'ART'
+   ____   ____ __  __    ____                   _
+  |  _ \ / ___|\ \/ /   / ___| _ __   __ _ _ __| | __
+  |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
+ART
+  printf '       =[ DGX Spark Controller · v%s ]\n' "${SCRIPT_VERSION}"
+  printf '+ -- --=[ %s ]\n'   "${MODEL_LABEL}"
+  printf '+ -- --=[ %s · %s ]\n' "${RUNTIME_LABEL}" "${MODEL_FEATURES}"
+  printf '+ -- --=[ Designed by neronain · fb.com/neronain.minidev ]\n\n'
+}
+
+info() {
+  banner
+  local ip url state
+  ip="$(detect_advertise_ip 2>/dev/null || true)"; [[ -n "$ip" ]] || ip="${API_HOST}"
+  url="http://${ip}:${API_PORT}/v1"
+  state="stopped"
+  if curl -fsS -m 2 "http://127.0.0.1:${API_PORT}/health" >/dev/null 2>&1; then
+    state="RUNNING"
+  fi
+  printf '  Model     : %s\n'              "${MODEL_LABEL}"
+  printf '  Model ID  : %s\n'              "${MODEL_ID:-n/a}"
+  printf '  Runtime   : %s\n'              "${RUNTIME_LABEL}"
+  printf '  Features  : %s\n'              "${MODEL_FEATURES}"
+  printf '  Context   : %s tokens\n'       "${MAX_MODEL_LEN:-n/a}"
+  printf '  API (v1)  : %s\n'              "${url}"
+  printf '  State     : %s  (port %s)\n\n' "${state}" "${API_PORT}"
+}
+```
+
+และต้องมี dispatch case คู่กันเสมอ:
+
+```bash
+info|banner)     info ;;
+```
+
+หลักสำคัญ:
+
+- State ตรวจจาก `curl http://127.0.0.1:${API_PORT}/health` (127.0.0.1 ไม่ใช่ IP ภายนอก เพื่อไม่ให้ firewall ทำให้อ่านผิด)
+- `info` ต้องเป็น read-only ปลอดภัย เรียกได้ตลอดเวลาแม้ระบบยังไม่เปิด และ **ห้ามถาม cluster config**
+- Banner ต้องมีเครดิตผู้ออกแบบ `Designed by neronain · fb.com/neronain.minidev`
+
+### 7.4 Interactive cluster config สำหรับ stacked (บังคับ)
+
+Stacked controller ต้องถามค่า cluster ตอนใช้งานจริง เพราะ IP และชื่อผู้ใช้ Linux ของแต่ละไซต์ไม่เหมือนของผู้พัฒนา
+
+กฎ:
+
+- ถามเฉพาะคำสั่ง `start` และ `restart` เท่านั้น
+- ถามเฉพาะเมื่อ stdin เป็น TTY (`[[ -t 0 ]]`) — รันแบบ non-interactive/CI ต้องเงียบสนิท
+- แต่ละคำถาม default เป็นค่าปัจจุบัน กด Enter = คงค่าเดิม
+- Environment override ยังชนะเสมอ (`MASTER_IP=… WORKER_IP=… SSH_USER=… ./controller.sh start`)
+- ถาม 3 ค่า: Head (master) node IP, Worker node IP, SSH user for nodes
+
+```bash
+prompt_cluster_config() {
+  [[ -t 0 ]] || return 0
+  local ans
+  printf '\n== Cluster configuration (press Enter to keep the current value) ==\n'
+  read -rp "  Head (master) node IP [${MASTER_IP}]: " ans || true; [[ -z "$ans" ]] || MASTER_IP="$ans"
+  read -rp "  Worker node IP        [${WORKER_IP}]: " ans || true; [[ -z "$ans" ]] || WORKER_IP="$ans"
+  read -rp "  SSH user for nodes    [${SSH_USER}]: " ans || true; [[ -z "$ans" ]] || SSH_USER="$ans"
+  printf '\n'
+}
+case "${1:-}" in start|restart) prompt_cluster_config ;; esac
+```
+
+**กฎตำแหน่งที่ห้ามพลาด:** วาง `prompt_cluster_config()` และ `case … start|restart) …` ไว้**ถัดจากบรรทัดที่ประกาศ `MASTER_IP` / `WORKER_IP` / `SSH_USER` ทันที** และ**ก่อนตัวแปรทุกตัวที่คำนวณจากค่าเหล่านั้น** เช่น
+
+```bash
+MASTER_HOME="/home/${SSH_USER}"
+SSH_TARGET="${SSH_USER}@${WORKER_IP}"
+TRANSPORT_IP_MASTER="${TRANSPORT_IP_MASTER:-$MASTER_IP}"
+TRANSPORT_IP_WORKER="${TRANSPORT_IP_WORKER:-$WORKER_IP}"
+```
+
+ถ้าวางหลังตัวแปร derived เหล่านี้ ค่าที่ผู้ใช้พิมพ์จะ**ไม่มีผล** เพราะ derived value ถูก expand ด้วย default เดิมไปแล้ว — เป็นบั๊กที่เงียบและหาเจอยาก (SSH ไปเครื่องผิด, path home ผิด, NCCL ผูก IP ผิด)
+
+### 7.5 ห้าม hard-code ชื่อผู้ใช้ Linux (บังคับ)
+
+ห้ามฝังชื่อผู้ใช้ของผู้พัฒนาหรือ `/home/<name>` ลงในสคริปต์ เพราะ controller ต้องรันได้บนเครื่องของคนอื่น:
+
+```bash
+# ถูก
+SSH_USER="${SSH_USER:-${USER:-$(id -un)}}"
+USER_HOME="${USER_HOME:-$HOME}"
+MASTER_HOME="${MASTER_HOME:-/home/${SSH_USER}}"
+
+# ผิด
+SSH_USER="${SSH_USER:-neronain}"
+HF_HOME="/home/neronain/.cache/huggingface"
+```
+
+ชื่อผู้ใช้ปรากฏได้ที่เดียวคือบรรทัดเครดิตใน banner (`fb.com/neronain.minidev`) ซึ่ง audit ยกเว้นให้
+
+### 7.6 Validation ของ CLI options (บังคับ)
+
+ตรวจค่าที่รับจาก command line ก่อนใช้ทุกครั้ง อย่าปล่อยให้ค่าผิดไหลไปถึง Docker หรือ vLLM:
+
+```bash
+[[ "$MAX_MODEL_LEN" =~ ^[0-9]+$ ]] && (( MAX_MODEL_LEN > 0 )) \
+  || die "Invalid --context: ${MAX_MODEL_LEN}"
+[[ "$API_PORT" =~ ^[0-9]+$ ]] && (( API_PORT >= 1 && API_PORT <= 65535 )) \
+  || die "Invalid --port: ${API_PORT} (use 1..65535)"
+```
+
+- `--port` ต้องอยู่ในช่วง 1..65535
+- `--context` ต้องมากกว่า 0 (ปฏิเสธ 0, ค่าว่าง และค่าที่ไม่ใช่ตัวเลข)
+- ตรวจหลัง parse argument จบ แต่ก่อน export ไปให้ subprocess
 
 ---
 
@@ -378,6 +524,8 @@ fi
 ```
 
 เมื่อ container สร้าง cache เป็น root ให้มีฟังก์ชันซ่อม ownership ทั้ง head และ worker
+
+ด้วยเหตุนี้ค่า default ของ `SSH_USER` จึงต้องเป็น `${USER:-$(id -un)}` (ดู 7.5) ไม่ใช่ชื่อผู้ใช้ที่ hard-code — เพราะเมื่อเผลอรันด้วย `sudo` จะเห็นได้ทันทีว่า `SSH_USER` กลายเป็น `root` และ preflight ล้มเร็ว แทนที่จะไป SSH ผิดเครื่องแบบเงียบ ๆ
 
 ---
 
@@ -702,6 +850,7 @@ done
 Controller ควรมีคำสั่งอย่างน้อย:
 
 ```text
+info (alias: banner)
 runtime-info
 network-info
 doctor
@@ -743,6 +892,23 @@ props
 ./controller.sh logs head 300
 ./controller.sh logs worker 300
 ```
+
+### 17.4 info
+
+คำสั่งที่ถูกที่สุดและใช้บ่อยที่สุด ใช้ตอบคำถาม “ไฟล์นี้คือ controller ของอะไร และตอนนี้เปิดอยู่ไหม” โดยไม่ต้องแตะ Docker เลย:
+
+```bash
+./controller.sh info
+./controller.sh banner
+```
+
+แสดง banner + `DGX Spark Controller · v<SCRIPT_VERSION>` + model label/ID + runtime + features + context + API v1 URL + State (RUNNING/stopped) พร้อมพอร์ต (รายละเอียดใน 7.3)
+
+ข้อกำหนด:
+
+- ทำงานได้ทั้งตอนระบบเปิดและปิด ไม่ throw error
+- ไม่แก้ไข state ใด ๆ และ **ห้ามถาม cluster config** (แม้ในเครื่อง TTY) เพราะเป็นคำสั่งอ่านค่า
+- ใช้ตรวจหลาย controller เรียงกันได้ เช่น `for f in *-stacked.sh; do bash "$f" info; done`
 
 ---
 
@@ -969,35 +1135,109 @@ REASONING_PARSER=<supported-or-empty>
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# 1. Configuration
+# 1. Configuration + identity
+SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"
+MODEL_LABEL="${MODEL_LABEL:-Vendor-Model (NVFP4) · 2-node}"
+RUNTIME_LABEL="${RUNTIME_LABEL:-vLLM (Docker, stacked)}"
+MODEL_FEATURES="${MODEL_FEATURES:-reasoning · tools · tool-loop}"
+
 MODEL_ID="${MODEL_ID:-vendor/model}"
 VLLM_IMAGE="${VLLM_IMAGE:-vendor/vllm:version}"
+TP_SIZE="${TP_SIZE:-2}"
+API_PORT="${API_PORT:-8000}"
+API_HOST="${API_HOST:-0.0.0.0}"
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-131072}"
+
+# ── Cluster nodes (ห้าม hard-code ชื่อผู้ใช้ — ดู 7.5) ──
 MASTER_IP="${MASTER_IP:-10.0.0.1}"
 WORKER_IP="${WORKER_IP:-10.0.0.2}"
-TP_SIZE="${TP_SIZE:-2}"
+SSH_USER="${SSH_USER:-${USER:-$(id -un)}}"
 
-# 2. Helpers
+# 2. Interactive cluster config — ต้องอยู่ที่นี่: ถัดจาก MASTER_IP/WORKER_IP/SSH_USER
+#    ทันที และก่อนตัวแปร derived ทุกตัวด้านล่าง (ดู 7.4)
+prompt_cluster_config() {
+  [[ -t 0 ]] || return 0
+  local ans
+  printf '\n== Cluster configuration (press Enter to keep the current value) ==\n'
+  read -rp "  Head (master) node IP [${MASTER_IP}]: " ans || true; [[ -z "$ans" ]] || MASTER_IP="$ans"
+  read -rp "  Worker node IP        [${WORKER_IP}]: " ans || true; [[ -z "$ans" ]] || WORKER_IP="$ans"
+  read -rp "  SSH user for nodes    [${SSH_USER}]: " ans || true; [[ -z "$ans" ]] || SSH_USER="$ans"
+  printf '\n'
+}
+case "${1:-}" in start|restart) prompt_cluster_config ;; esac
+
+# 3. Derived variables (ต้องอยู่ "หลัง" prompt เท่านั้น)
+USER_HOME="${USER_HOME:-$HOME}"
+MASTER_HOME="${MASTER_HOME:-/home/${SSH_USER}}"
+SSH_TARGET="${SSH_USER}@${WORKER_IP}"
+TRANSPORT_IP_MASTER="${TRANSPORT_IP_MASTER:-$MASTER_IP}"
+TRANSPORT_IP_WORKER="${TRANSPORT_IP_WORKER:-$WORKER_IP}"
+HF_HOME="${HF_HOME:-${USER_HOME}/.cache/huggingface}"
+
+# 4. Helpers
 die() { echo "ERROR: $*" >&2; exit 1; }
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
-ssh_worker() { ssh -o BatchMode=yes "$SSH_USER@$WORKER_IP" "$@"; }
+ssh_worker() { ssh -o BatchMode=yes "$SSH_TARGET" "$@"; }
 
 require_non_root() {
   (( EUID != 0 )) || die "Run as a normal user"
 }
 
-# 3. Preconditions
+parse_args() {
+  # … parse --port / --context / --advertise-ip / --interface …
+  [[ "$MAX_MODEL_LEN" =~ ^[0-9]+$ ]] && (( MAX_MODEL_LEN > 0 )) \
+    || die "Invalid --context: ${MAX_MODEL_LEN}"
+  [[ "$API_PORT" =~ ^[0-9]+$ ]] && (( API_PORT >= 1 && API_PORT <= 65535 )) \
+    || die "Invalid --port: ${API_PORT} (use 1..65535)"
+  export MAX_MODEL_LEN API_HOST API_PORT
+}
+
+# 5. Branding / info
+banner() {
+  cat <<'ART'
+   ____   ____ __  __    ____                   _
+  |  _ \ / ___|\ \/ /   / ___| _ __   __ _ _ __| | __
+  |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
+ART
+  printf '       =[ DGX Spark Controller · v%s ]\n' "${SCRIPT_VERSION}"
+  printf '+ -- --=[ %s ]\n'   "${MODEL_LABEL}"
+  printf '+ -- --=[ %s · %s ]\n' "${RUNTIME_LABEL}" "${MODEL_FEATURES}"
+  printf '+ -- --=[ Designed by neronain · fb.com/neronain.minidev ]\n\n'
+}
+
+detect_advertise_ip() { :; }
+
+info() {
+  banner
+  local ip url state
+  ip="$(detect_advertise_ip 2>/dev/null || true)"; [[ -n "$ip" ]] || ip="${API_HOST}"
+  url="http://${ip}:${API_PORT}/v1"
+  state="stopped"
+  if curl -fsS -m 2 "http://127.0.0.1:${API_PORT}/health" >/dev/null 2>&1; then
+    state="RUNNING"
+  fi
+  printf '  Model     : %s\n'              "${MODEL_LABEL}"
+  printf '  Model ID  : %s\n'              "${MODEL_ID:-n/a}"
+  printf '  Runtime   : %s\n'              "${RUNTIME_LABEL}"
+  printf '  Features  : %s\n'              "${MODEL_FEATURES}"
+  printf '  Context   : %s tokens\n'       "${MAX_MODEL_LEN:-n/a}"
+  printf '  API (v1)  : %s\n'              "${url}"
+  printf '  State     : %s  (port %s)\n\n' "${state}" "${API_PORT}"
+}
+
+# 6. Preconditions
 check_runtime() { :; }
 check_network() { :; }
 check_model() { :; }
 check_cache_permissions() { :; }
 
-# 4. Lifecycle
+# 7. Lifecycle
 prepare_runtime() { :; }
 download_model() { :; }
 verify_model() { :; }
 sync_worker() { :; }
 
-# 5. Orchestration
+# 8. Orchestration
 start_worker() { :; }
 start_head() { :; }
 wait_for_health() { :; }
@@ -1013,32 +1253,45 @@ start() {
 }
 
 stop() { :; }
+restart() { stop; start; }
 status() { :; }
 logs() { :; }
 doctor() { :; }
 
-# 6. Validation
+# 9. Validation
 test_text() { :; }
 stress() { :; }
 bench() { :; }
 
-# 7. Dispatch
+# 10. Dispatch
 case "${1:-help}" in
+  info|banner) info ;;
   prepare-runtime) prepare_runtime ;;
   download) download_model ;;
   verify) verify_model ;;
   sync-worker) sync_worker ;;
   doctor) doctor ;;
   start) start ;;
+  restart) restart ;;
   stop) stop ;;
   status) status ;;
   logs) logs ;;
   test-text) test_text ;;
   stress) stress ;;
   bench) bench ;;
-  *) echo "Usage: $0 {prepare-runtime|download|verify|sync-worker|doctor|start|stop|status|logs|test-text|stress|bench}" ;;
+  *) echo "Usage: $0 {info|prepare-runtime|download|verify|sync-worker|doctor|start|restart|stop|status|logs|test-text|stress|bench}" ;;
 esac
 ```
+
+จุดที่มักทำผิดใน skeleton นี้:
+
+| ผิด | ผลที่เกิด |
+|---|---|
+| วาง `prompt_cluster_config` ไว้ท้ายไฟล์หรือหลัง derived vars | ค่าที่ผู้ใช้พิมพ์ไม่มีผล SSH/path/NCCL ใช้ default เดิม |
+| เรียก `prompt_cluster_config` ทุกคำสั่ง | `info`, `status`, `logs` ค้างรอ input ใน script/CI |
+| ไม่เช็ก `[[ -t 0 ]]` | รันใน cron/CI แล้วบล็อกหรืออ่านค่าขยะ |
+| ไม่มี `info\|banner)` ใน dispatch | audit ขึ้น `missing-banner-info` |
+| validate `--port`/`--context` หลัง export หรือไม่ validate | ค่าผิดหลุดเข้า Docker/vLLM แล้วล้มช้าและอ่าน error ยาก |
 
 ---
 
@@ -1064,6 +1317,62 @@ esac
 - [ ] ไม่มี memory leak หรือ hang ใน soak test
 - [ ] Firewall และ authentication ได้รับการพิจารณา
 - [ ] มีวิธี rollback image และ configuration
+- [ ] มี `SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"` และ label ของโมเดลครบ
+- [ ] มี `banner()` + `info()` และ dispatch case `info|banner)`
+- [ ] `info` แสดง model/runtime/features/context/API URL และ State (RUNNING/stopped) ถูกต้องทั้งตอนเปิดและปิด
+- [ ] Stacked controller มี `prompt_cluster_config()` วางถัดจาก `MASTER_IP`/`WORKER_IP`/`SSH_USER` และก่อนตัวแปร derived
+- [ ] Cluster prompt ถามเฉพาะ `start`/`restart` และเฉพาะเมื่อ stdin เป็น TTY
+- [ ] Env override (`MASTER_IP=… WORKER_IP=… SSH_USER=…`) ยังชนะค่าที่ prompt
+- [ ] ไม่มีชื่อผู้ใช้ Linux หรือ `/home/<name>` hard-code (ยกเว้นบรรทัดเครดิตใน banner)
+- [ ] `--port` ตรวจช่วง 1..65535 และ `--context` ตรวจว่ามากกว่า 0
+- [ ] `audit-controllers.py` ไม่รายงาน finding ค้าง
+- [ ] `verify-all.sh` ผ่านครบทุก controller
+
+### 25.1 Static audit rules (`audit-controllers.py`)
+
+รัน audit ทุกครั้งหลังแก้ controller ต้องไม่เหลือ finding เหล่านี้:
+
+```text
+missing-script-version      ไม่มี SCRIPT_VERSION="${SCRIPT_VERSION:-X.Y.Z}" แบบ override ได้
+missing-banner-info         ขาด banner() หรือ info() หรือ dispatch case info|banner)
+hard-coded-author-username  ฝังชื่อผู้ใช้ Linux ไว้ในสคริปต์ (ยกเว้นบรรทัดเครดิต)
+missing-cluster-prompt      stacked controller ที่ไม่มี prompt_cluster_config()
+missing-port-option         ไม่มี option --port
+missing-network-selection   ขาด network-info หรือ detect_advertise_ip
+first-hostname-ip           ใช้ IP ตัวแรกจาก hostname โดยไม่ผ่าน detect_advertise_ip
+```
+
+`missing-cluster-prompt` ตรวจเฉพาะไฟล์ stacked ซึ่งใน repo นี้คือ:
+
+```text
+deepseek-v4-flash-nvfp4-stacked.sh
+gemma4-31b-stacked.sh
+minimax-m27-luke-stacked.sh
+vllm-stackctl.sh
+```
+
+### 25.2 `verify-all.sh`
+
+`verify-all.sh` เป็น gate สุดท้าย ครอบคลุม controller ทั้ง **21 ตัว** ใน repo และตรวจ:
+
+```text
+bash -n ทุกไฟล์ (syntax)
+เรียก help ได้โดยไม่ค้าง
+เรียก info ได้ และ output มี "DGX Spark Controller" + ฟิลด์ Model/Runtime/Features/State
+network-info และ client-config ทำงานด้วย --context/--port/--advertise-ip
+ปฏิเสธ --port 70000 และ --context 0
+stacked ทุกตัวมี prompt_cluster_config
+stacked ต้อง "ไม่" ถาม cluster config เมื่อสั่งคำสั่งอื่นที่ไม่ใช่ start/restart
+ไม่มีไฟล์ใด hard-code ชื่อผู้ใช้ (ยกเว้น fb.com/neronain.minidev)
+สุดท้ายเรียก audit-controllers.py
+```
+
+ทุกคำสั่งในสคริปต์นี้รันด้วย `</dev/null` เพื่อบังคับให้ stdin ไม่ใช่ TTY — เป็นการพิสูจน์ว่ากฎ `[[ -t 0 ]]` ใน 7.4 ทำงานจริงและ controller ใช้งานใน CI ได้
+
+```bash
+./verify-all.sh
+python3 audit-controllers.py .
+```
 
 ---
 
@@ -1110,6 +1419,11 @@ esac
 10. **อ่าน error แรกที่เฉพาะเจาะจงที่สุด**
 11. **อย่าปรับหลายค่าในครั้งเดียว**
 12. **เก็บ baseline และ rollback path เสมอ**
+13. **ทุก controller ต้องบอกตัวเองได้ว่าเป็นใคร** — `SCRIPT_VERSION` + `info`/`banner`
+14. **ถาม cluster config เฉพาะ `start`/`restart` และเฉพาะบน TTY** — คำสั่งอ่านค่าต้องไม่ค้าง
+15. **วาง prompt ก่อนตัวแปร derived เสมอ** ไม่งั้นค่าที่ผู้ใช้พิมพ์จะไม่มีผล
+16. **ห้าม hard-code ชื่อผู้ใช้หรือ `/home/<name>`** ใช้ `${USER:-$(id -un)}` และ `$HOME`
+17. **Validate `--port` และ `--context` ก่อนใช้** ล้มที่ argument ดีกว่าล้มกลางทาง
 
 ---
 
@@ -1137,38 +1451,45 @@ esac
 ## 29. Reference Commands สำหรับ Implementation ปัจจุบัน
 
 ```bash
+# ดูว่า controller นี้คือโมเดลอะไร พอร์ตไหน และเปิดอยู่หรือไม่ (ไม่แตะ Docker)
+./deepseek-v4-flash-nvfp4-stacked.sh info
+
 # เตรียมและล็อก runtime image
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh prepare-runtime
+./deepseek-v4-flash-nvfp4-stacked.sh prepare-runtime
 
 # ตรวจ environment และ compatibility
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh doctor
+./deepseek-v4-flash-nvfp4-stacked.sh doctor
 
 # ดาวน์โหลดและตรวจโมเดล
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh download
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh verify-files
+./deepseek-v4-flash-nvfp4-stacked.sh download
+./deepseek-v4-flash-nvfp4-stacked.sh verify-files
 
 # ส่งโมเดลและตรวจ worker
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh sync-worker
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh verify-worker
+./deepseek-v4-flash-nvfp4-stacked.sh sync-worker
+./deepseek-v4-flash-nvfp4-stacked.sh verify-worker
 
-# เปิดระบบ
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh start
+# เปิดระบบ (บน TTY จะถาม head IP / worker IP / SSH user ก่อน — Enter = ใช้ค่าเดิม)
+./deepseek-v4-flash-nvfp4-stacked.sh start
+
+# เปิดระบบแบบไม่ถาม (env override ชนะ prompt เสมอ · ใช้ใน CI/cron)
+MASTER_IP=10.100.152.1 WORKER_IP=10.100.152.2 SSH_USER=ops \
+  ./deepseek-v4-flash-nvfp4-stacked.sh start </dev/null
 
 # ตรวจสอบ
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh status
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh logs head 300
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh logs worker 300
+./deepseek-v4-flash-nvfp4-stacked.sh status
+./deepseek-v4-flash-nvfp4-stacked.sh logs head 300
+./deepseek-v4-flash-nvfp4-stacked.sh logs worker 300
 
 # ทดสอบ
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh test-text
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh test-reasoning
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh test-tools required
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh test-tool-loop
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh stress 4
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh bench
+./deepseek-v4-flash-nvfp4-stacked.sh test-text
+./deepseek-v4-flash-nvfp4-stacked.sh test-reasoning
+./deepseek-v4-flash-nvfp4-stacked.sh test-tools required
+./deepseek-v4-flash-nvfp4-stacked.sh test-tool-loop
+./deepseek-v4-flash-nvfp4-stacked.sh stress 4
+./deepseek-v4-flash-nvfp4-stacked.sh bench
 
 # หยุดระบบ
-./deepseek-v4-flash-nvfp4-stacked-fixed-v8.1-permission-fixed.sh stop
+./deepseek-v4-flash-nvfp4-stacked.sh stop
 ```
 
 ---
@@ -1188,6 +1509,8 @@ esac
 - สร้าง test ladder และ benchmark baseline
 - ย้าย deployment ไปโมเดลใหม่โดยใช้ capability matrix
 - ทำระบบให้ reproducible, diagnosable และ rollback ได้
+- ทำให้ controller อธิบายตัวเองได้ด้วย `info` และส่งต่อให้คนอื่นใช้ได้โดยไม่ต้องแก้ source
+- ผ่าน `audit-controllers.py` และ `verify-all.sh` ได้ทุกครั้งก่อนส่งมอบ
 
 ---
 
@@ -1210,3 +1533,9 @@ Model
 ```
 
 Controller script ที่ดีจึงทำหน้าที่เป็น **deployment control plane ขนาดย่อม** ซึ่งต้องตรวจสอบ เตรียม เปิด เฝ้าดู ทดสอบ และหยุดระบบได้อย่างปลอดภัยและทำซ้ำได้
+
+และต้องอธิบายตัวเองได้ด้วย — `SCRIPT_VERSION`, banner, `info`, cluster prompt ที่วางถูกตำแหน่ง, ไม่มีชื่อผู้ใช้ hard-code และ validation ของ option ทุกตัว คือส่วนที่ทำให้ controller ส่งต่อให้คนอื่นใช้ได้จริง ไม่ใช่ใช้ได้แค่บนเครื่องผู้เขียน
+
+---
+
+ออกแบบโดย neronain — https://www.facebook.com/neronain.minidev

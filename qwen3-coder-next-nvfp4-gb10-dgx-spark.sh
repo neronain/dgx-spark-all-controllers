@@ -9,6 +9,11 @@
 
 set -Eeuo pipefail
 
+SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"
+MODEL_LABEL="${MODEL_LABEL:-Qwen3-Coder-Next (NVFP4-GB10) · alt-source}"
+RUNTIME_LABEL="${RUNTIME_LABEL:-vLLM (Docker)}"
+MODEL_FEATURES="${MODEL_FEATURES:-code · tools}"
+
 HF_REPO="${HF_REPO:-saricles/Qwen3-Coder-Next-NVFP4-GB10}"
 MODEL_REVISION="${MODEL_REVISION:-main}"
 SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-qwen3-coder-next-nvfp4-gb10}"
@@ -25,6 +30,8 @@ HF_VENV="${HF_VENV:-${USER_HOME}/.venvs/hf}"
 API_HOST="${API_HOST:-127.0.0.1}"
 API_PORT="${API_PORT:-8000}"
 API_KEY="${API_KEY:-}"
+ADVERTISE_IP="${ADVERTISE_IP:-}"
+ADVERTISE_INTERFACE="${ADVERTISE_INTERFACE:-}"
 
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-262144}"
 GPU_MEMORY_UTIL="${GPU_MEMORY_UTIL:-0.90}"
@@ -38,7 +45,54 @@ HF_TOKEN="${HF_TOKEN:-}"
 log() { printf '[%(%H:%M:%S)T] %s\n' -1 "$*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+# ── Branding / info ───────────────────────────────────────────────────────────
+banner() {
+  cat <<'ART'
+
+   ____   ____ __  __    ____                   _
+  |  _ \ / ___|\ \/ /   / ___| _ __   __ _ _ __| | __
+  | | | | |  _  \  /    \___ \| '_ \ / _` | '__| |/ /
+  | |_| | |_| | /  \     ___) | |_) | (_| | |  |   <
+  |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
+                              |_|
+ART
+  printf '       =[ DGX Spark Controller · v%s ]\n' "${SCRIPT_VERSION}"
+  printf '+ -- --=[ %s ]\n'   "${MODEL_LABEL}"
+  printf '+ -- --=[ %s · %s ]\n' "${RUNTIME_LABEL}" "${MODEL_FEATURES}"
+  printf '+ -- --=[ Designed by neronain · fb.com/neronain.minidev ]\n\n'
+}
+
+# Show which model this controller serves, its port, features, and whether it is up.
+info() {
+  banner
+  local ip url state
+  ip="$(detect_advertise_ip 2>/dev/null || true)"; [[ -n "$ip" ]] || ip="${API_HOST}"
+  url="http://${ip}:${API_PORT}/v1"
+  state="stopped"
+  if curl -fsS -m 2 "http://127.0.0.1:${API_PORT}/health" >/dev/null 2>&1; then
+    state="RUNNING"
+  fi
+  printf '  Model     : %s\n'            "${MODEL_LABEL}"
+  printf '  Model ID  : %s\n'            "${MODEL_ID:-${HF_REPO:-${REPO_ID:-n/a}}}"
+  printf '  Runtime   : %s\n'            "${RUNTIME_LABEL}"
+  printf '  Features  : %s\n'            "${MODEL_FEATURES}"
+  printf '  Context   : %s tokens\n'     "${MAX_MODEL_LEN:-${CTX_SIZE:-n/a}}"
+  printf '  API (v1)  : %s\n'            "${url}"
+  printf '  State     : %s  (port %s)\n\n' "${state}" "${API_PORT}"
+}
+
 detect_advertise_ip() {
+  if [[ -n "$ADVERTISE_IP" ]]; then
+    printf '%s' "$ADVERTISE_IP"
+    return
+  fi
+  if [[ -n "$ADVERTISE_INTERFACE" ]]; then
+    local iface_ip
+    iface_ip="$(ip -4 -o addr show "$ADVERTISE_INTERFACE" scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]; exit}')"
+    [[ -n "$iface_ip" ]] || die "No global IPv4 on interface: $ADVERTISE_INTERFACE"
+    printf '%s' "$iface_ip"
+    return
+  fi
   if [[ "$API_HOST" != "0.0.0.0" && "$API_HOST" != "::" ]]; then
     printf '%s' "$API_HOST"
     return
@@ -52,10 +106,22 @@ detect_advertise_ip() {
   printf '%s' "$ip_addr"
 }
 
+_container_running() {
+  local n
+  n="$(docker ps --format '{{.Names}}' 2>/dev/null || true)"
+  grep -Fxq "$1" <<<"$n"
+}
+_container_exists() {
+  local n
+  n="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
+  grep -Fxq "$1" <<<"$n"
+}
+
 model_ready() {
-  [[ -f "${MODEL_DIR}/config.json" ]] &&
-  find "$MODEL_DIR" -maxdepth 1 -type f -name '*.safetensors' \
-    -print -quit | grep -q .
+  [[ -f "${MODEL_DIR}/config.json" ]] || return 1
+  local _st
+  _st="$(find "$MODEL_DIR" -maxdepth 1 -type f -name '*.safetensors' -print -quit 2>/dev/null)"
+  [[ -n "$_st" ]]
 }
 
 stored_token_exists() {
@@ -98,8 +164,8 @@ MSG
 }
 
 validate_options() {
-  [[ "$API_PORT" =~ ^[0-9]+$ ]] || die "Invalid port: ${API_PORT}"
-  [[ "$MAX_MODEL_LEN" =~ ^[0-9]+$ ]] || die "Invalid context: ${MAX_MODEL_LEN}"
+  [[ "$API_PORT" =~ ^[0-9]+$ ]] && (( API_PORT >= 1 && API_PORT <= 65535 )) || die "Invalid port: ${API_PORT} (use 1..65535)"
+  [[ "$MAX_MODEL_LEN" =~ ^[0-9]+$ ]] && (( MAX_MODEL_LEN > 0 )) || die "Invalid context: ${MAX_MODEL_LEN}"
   [[ "$MAX_NUM_BATCHED_TOKENS" =~ ^[0-9]+$ ]] ||
     die "Invalid max batched tokens"
   [[ "$MAX_NUM_SEQS" =~ ^[0-9]+$ ]] || die "Invalid max seqs"
@@ -111,6 +177,10 @@ parse_options() {
     case "$1" in
       --bind) API_HOST="$2"; shift 2 ;;
       --bind=*) API_HOST="${1#*=}"; shift ;;
+      --advertise-ip) ADVERTISE_IP="$2"; shift 2 ;;
+      --advertise-ip=*) ADVERTISE_IP="${1#*=}"; shift ;;
+      --interface) ADVERTISE_INTERFACE="$2"; shift 2 ;;
+      --interface=*) ADVERTISE_INTERFACE="${1#*=}"; shift ;;
       --port) API_PORT="$2"; shift 2 ;;
       --port=*) API_PORT="${1#*=}"; shift ;;
       --api-key) API_KEY="$2"; shift 2 ;;
@@ -145,7 +215,8 @@ preflight() {
   nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null ||
     echo "nvidia-smi unavailable"
 
-  if docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q nvidia; then
+  _runtimes="$(docker info --format '{{json .Runtimes}}' 2>/dev/null || true)"
+  if [[ "$_runtimes" == *nvidia* ]]; then
     echo "NVIDIA runtime  : available"
   else
     echo "NVIDIA runtime  : NOT DETECTED"
@@ -258,14 +329,15 @@ start() {
   model_ready || die "Model not found. Run: $0 download"
   command -v docker >/dev/null 2>&1 || die "Docker is required"
 
-  if docker ps --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
+  if _container_running "$CONTAINER_NAME"; then
     die "Container ${CONTAINER_NAME} is already running"
   fi
-  if docker ps -a --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
+  if _container_exists "$CONTAINER_NAME"; then
     docker rm "$CONTAINER_NAME" >/dev/null
   fi
 
-  if ss -tln 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]${API_PORT}$"; then
+  _listening="$(ss -tln 2>/dev/null || true)"
+  if [[ "$_listening" =~ [:.]${API_PORT}([[:space:]]|$) ]]; then
     die "Port ${API_PORT} is already in use"
   fi
 
@@ -316,7 +388,7 @@ start() {
   log "Waiting for /health; first startup may take several minutes"
   local deadline=$(( $(date +%s) + STARTUP_TIMEOUT ))
   while (( $(date +%s) < deadline )); do
-    if ! docker ps --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
+    if ! _container_running "$CONTAINER_NAME"; then
       docker logs --tail 200 "$CONTAINER_NAME" >&2 || true
       die "Container exited before becoming healthy"
     fi
@@ -338,7 +410,7 @@ start() {
 }
 
 stop() {
-  if docker ps -a --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
+  if _container_exists "$CONTAINER_NAME"; then
     log "Stopping ${CONTAINER_NAME}"
     docker rm -f "$CONTAINER_NAME" >/dev/null
     log "Stopped."
@@ -554,6 +626,7 @@ case "${1:-help}" in
   test-text) test_text ;;
   test-code) test_code ;;
   test-tools) test_tools ;;
+  info|banner) info ;;
   network-info) network_info ;;
   cline-config) cline_config ;;
   client-config) client_config ;;
