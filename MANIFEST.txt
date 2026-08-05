@@ -1,12 +1,14 @@
-DGX Spark Controller Collection v3.1.0
+DGX Spark Controller Collection v3.2.0
 Designed by neronain - https://www.facebook.com/neronain.minidev
 
 Documentation
   AUDIT_REPORT.md
+  ADDING-GENERATED-CONTROLLERS.md
   CHANGELOG.md
   MANIFEST.txt
   PACKAGE_SHA256SUMS
   README.md
+  README.en.md
   SKILL_UPDATE.md
   skills_Strack.md
   step.md
@@ -43,4 +45,7 @@ Controllers - stacked / multi-node (2x DGX Spark)
   minimax-m27-luke-stacked.sh
   vllm-stackctl.sh
 
-Total: 21 controllers, 3 tools, 8 documents
+Controllers - stacked / multi-node, SGLang (Docker)
+  minimax-m3-v0-nvfp4-reap50-stacked.sh
+
+Total: 22 controllers, 3 tools, 10 documents

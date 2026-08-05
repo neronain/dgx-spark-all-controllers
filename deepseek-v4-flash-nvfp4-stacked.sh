@@ -511,6 +511,60 @@ print('verify-worker: PASS')
 }
 
 # ─── _nccl_env_args ───────────────────────────────────────────────────────────
+# ─── fabric interface discovery ───────────────────────────────
+# Interface names on DGX Spark are long and differ per port (enp1s0f1np1 and
+# enP2p1s0f1np1 are two separate fabrics on the same box). Typing the wrong one
+# does not fail loudly: NCCL quietly falls back to the management NIC. Derive the
+# name from the transport IP instead, and let an explicit setting win.
+detect_interface_for_ip() {
+  local target="$1"
+  ip -o -4 addr show 2>/dev/null |
+    awk -v want="$target" '$4 ~ ("^" want "/") {print $2; exit}'
+}
+
+detect_worker_interface() {
+  ssh_worker "ip -o -4 addr show 2>/dev/null | awk -v want='${TRANSPORT_IP_WORKER}' \
+    '\$4 ~ (\"^\" want \"/\") {print \$2; exit}'" 2>/dev/null || true
+}
+
+# The RoCE HCA that belongs to a NIC is discoverable: each InfiniBand device
+# lists the netdev it is bound to. Without NCCL_IB_HCA, NCCL falls back to TCP
+# and the 200G fabric performs like ordinary ethernet.
+detect_hca_for_interface() {
+  local want="$1" dev
+  [[ -n "$want" ]] || return 0
+  for dev in /sys/class/infiniband/*; do
+    [[ -e "$dev/device/net/$want" ]] || continue
+    basename "$dev"
+    return 0
+  done
+  return 0
+}
+
+_resolve_nccl_hca() {
+  [[ -n "$NCCL_IB_HCA" ]] && return 0
+  NCCL_IB_HCA="$(detect_hca_for_interface "$NCCL_SOCKET_IFNAME")"
+  [[ -n "$NCCL_IB_HCA" ]] &&
+    log "RoCE HCA for ${NCCL_SOCKET_IFNAME}: ${NCCL_IB_HCA}"
+  return 0
+}
+
+_resolve_nccl_ifname() {
+  [[ -n "$NCCL_SOCKET_IFNAME" ]] && return 0
+  NCCL_SOCKET_IFNAME="$(detect_interface_for_ip "$TRANSPORT_IP_MASTER")"
+  [[ -n "$NCCL_SOCKET_IFNAME" ]] &&
+    log "Fabric interface for ${TRANSPORT_IP_MASTER}: ${NCCL_SOCKET_IFNAME}"
+  return 0
+}
+
+# Fail on the wrong host instead of dying inside NCCL init with an opaque error.
+check_running_on_master() {
+  local interface
+  interface="$(detect_interface_for_ip "$TRANSPORT_IP_MASTER")"
+  [[ -n "$interface" ]] ||
+    die "This host does not own MASTER_IP=${TRANSPORT_IP_MASTER}. Run this controller on the head node (swap MASTER_IP/WORKER_IP if the roles are reversed)."
+}
+
 _nccl_env_args() {
   # Emit -e flags for docker run. Warns if interface not configured.
   local args=()
@@ -521,8 +575,12 @@ _nccl_env_args() {
     args+=(-e "NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}")
     args+=(-e "GLOO_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}")
     args+=(-e "TP_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}")
+    # UCX and OMPI choose their own transport; without these they can still land
+    # on the management NIC while NCCL is correctly on the fabric.
+    args+=(-e "UCX_NET_DEVICES=${NCCL_SOCKET_IFNAME}")
+    args+=(-e "OMPI_MCA_btl_tcp_if_include=${NCCL_SOCKET_IFNAME}")
   else
-    echo "WARN: NCCL_SOCKET_IFNAME not set. NCCL may select the wrong interface." >&2
+    echo "WARN: no interface owns ${TRANSPORT_IP_MASTER}. NCCL may select the wrong one." >&2
     echo "WARN: Set NCCL_SOCKET_IFNAME to your QSFP/RoCE interface (e.g. enp1s0f0np0)" >&2
   fi
 
@@ -570,6 +628,8 @@ clear_flashinfer_cache() {
 }
 
 doctor() {
+  _resolve_nccl_ifname
+  _resolve_nccl_hca
   _require_non_root
   local image_id
   image_id=$(_assert_runtime_images)
@@ -602,6 +662,18 @@ PYEOF
 # ─── start ────────────────────────────────────────────────────────────────────
 start() {
   _require_non_root
+  check_running_on_master
+  _resolve_nccl_ifname
+  _resolve_nccl_hca
+  # The worker may name the same fabric differently, so ask that host directly.
+  local WORKER_IFNAME="$NCCL_SOCKET_IFNAME"
+  local detected_worker
+  detected_worker="$(detect_worker_interface)"
+  if [[ -n "$detected_worker" ]]; then
+    WORKER_IFNAME="$detected_worker"
+    [[ "$WORKER_IFNAME" == "$NCCL_SOCKET_IFNAME" ]] ||
+      log "Worker fabric interface differs from head: ${WORKER_IFNAME}"
+  fi
   # Validate that both nodes use exactly the same locked image.
   local image_id cache_key head_flashinfer_cache worker_flashinfer_cache
   image_id=$(_assert_runtime_images)
@@ -697,9 +769,11 @@ export VLLM_USE_FLASHINFER_SAMPLER=1
 export VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0
 export NCCL_IGNORE_CPU_AFFINITY=1
 export NCCL_IB_GID_INDEX=${NCCL_IB_GID_INDEX}
-$([ -n "$NCCL_SOCKET_IFNAME" ] && echo "export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}")
-$([ -n "$NCCL_SOCKET_IFNAME" ] && echo "export GLOO_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}")
-$([ -n "$NCCL_SOCKET_IFNAME" ] && echo "export TP_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME}")
+$([ -n "$WORKER_IFNAME" ] && echo "export NCCL_SOCKET_IFNAME=${WORKER_IFNAME}")
+$([ -n "$WORKER_IFNAME" ] && echo "export GLOO_SOCKET_IFNAME=${WORKER_IFNAME}")
+$([ -n "$WORKER_IFNAME" ] && echo "export TP_SOCKET_IFNAME=${WORKER_IFNAME}")
+$([ -n "$WORKER_IFNAME" ] && echo "export UCX_NET_DEVICES=${WORKER_IFNAME}")
+$([ -n "$WORKER_IFNAME" ] && echo "export OMPI_MCA_btl_tcp_if_include=${WORKER_IFNAME}")
 $([ -n "$NCCL_IB_HCA" ] && echo "export NCCL_IB_HCA=${NCCL_IB_HCA}")
 $([ -n "$NCCL_IB_HCA" ] && echo "export NCCL_IB_DISABLE=0" || echo "export NCCL_IB_DISABLE=1")
 exec vllm serve ${quoted_flags} --node-rank 1 --host 127.0.0.1 --port 18000 --headless
@@ -830,13 +904,15 @@ logs() {
 
 # ─── network-info ─────────────────────────────────────────────────────────────
 network_info() {
+  _resolve_nccl_ifname
+  _resolve_nccl_hca
   local adv; adv=$(detect_advertise_ip)
   echo "=== Network ==="
   echo "  Head management  : ${MASTER_IP}"
   echo "  Worker management: ${WORKER_IP}"
   echo "  Head transport   : ${TRANSPORT_IP_MASTER}"
   echo "  Worker transport : ${TRANSPORT_IP_WORKER}"
-  echo "  NCCL interface   : ${NCCL_SOCKET_IFNAME:-<NOT SET — required>}"
+  echo "  NCCL interface   : ${NCCL_SOCKET_IFNAME:-<no interface owns ${TRANSPORT_IP_MASTER}>}"
   echo "  NCCL HCA         : ${NCCL_IB_HCA:-<NOT SET — use TCP fallback>}"
   echo "  Master port      : ${MASTER_PORT}"
   echo "  API bind         : ${API_HOST}:${API_PORT}"

@@ -32,6 +32,7 @@ singles=(
 stacked=(
   deepseek-v4-flash-nvfp4-stacked.sh
   gemma4-31b-stacked.sh
+  minimax-m3-v0-nvfp4-reap50-stacked.sh
   minimax-m27-luke-stacked.sh
   vllm-stackctl.sh
 )

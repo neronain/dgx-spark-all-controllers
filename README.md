@@ -1,8 +1,10 @@
-# DGX Spark Controller Collection v3.1.0
+# DGX Spark Controller Collection v3.2.0
 
-ชุด Controller สำหรับรันโมเดลบน NVIDIA DGX Spark จำนวน **21 ตัว** — เอาไปใช้งานได้ทันที ไม่ใช่ตัว generate script
+ชุด Controller สำหรับรันโมเดลบน NVIDIA DGX Spark จำนวน **22 ตัว** — เอาไปใช้งานได้ทันที ไม่ใช่ตัว generate script
 
 ออกแบบโดย **neronain** · <https://www.facebook.com/neronain.minidev>
+
+> 🇬🇧 English: [README.en.md](README.en.md)
 
 ทุกตัวใช้มาตรฐานเดียวกัน: ชุดคำสั่งเหมือนกัน, override context/port/bind/IP ได้, มี ASCII banner + คำสั่ง `info`, ไม่ผูกกับชื่อผู้ใช้หรือ IP ของเครื่องผู้พัฒนา
 
@@ -78,6 +80,12 @@ deepseek-v4-flash-nvfp4-stacked.sh   DeepSeek-V4-Flash NVFP4 · 1M ctx
 gemma4-31b-stacked.sh                Gemma-4-31B-IT NVFP4
 minimax-m27-luke-stacked.sh          MiniMax-M2.7 NVFP4
 vllm-stackctl.sh                     Llama-3.3-70B-Instruct (generic stacked)
+```
+
+### Stacked / multi-node — SGLang
+
+```text
+minimax-m3-v0-nvfp4-reap50-stacked.sh   MiniMax-M3-v0 NVFP4-REAP50 · 2 โหนด TP=2
 ```
 
 ## คำสั่งมาตรฐาน
@@ -245,7 +253,7 @@ Bash arithmetic ไม่รองรับ underscore ในตัวเลข:
 (( model_size > 25_000_000_000 ))   # error: value too great for base
 ```
 
-ทั้ง 21 ตัวไม่มี pure numeric literal ที่ใช้ underscore เหลืออยู่ · ค่าขนาดไฟล์ใช้ decimal ปกติ:
+ทั้ง 22 ตัวไม่มี pure numeric literal ที่ใช้ underscore เหลืออยู่ · ค่าขนาดไฟล์ใช้ decimal ปกติ:
 
 ```bash
 MODEL_SIZE_BYTES="30649317504"
@@ -263,8 +271,8 @@ MMPROJ_SIZE_BYTES="899283072"
 ผลที่ต้องได้:
 
 ```text
-Audited 21 scripts: errors=0, warnings=0
-All 21 DGX controllers passed static validation.
+Audited 22 scripts: errors=0, warnings=0
+All 22 DGX controllers passed static validation.
 ```
 
 `verify-all.sh` ตรวจทุกตัว: `bash -n`, `help`, `info` (ต้องมี banner + Model/Runtime/Features/State), `network-info`, `client-config`, ปฏิเสธ port 70000, ปฏิเสธ context 0, Stacked ต้องมี `prompt_cluster_config` และต้องไม่ถามตอนสั่ง `info` และต้องไม่มีชื่อผู้ใช้ hard-code เหลือ
@@ -306,23 +314,40 @@ stacked ที่ไม่มี prompt_cluster_config()
 ผ่านแล้ว (static, ทำบนเครื่องพัฒนา):
 
 ```text
-bash -n ทั้ง 21 Controller
+bash -n ทั้ง 22 Controller
 help routing
-info / banner ทั้ง 21 ตัว
+info / banner ทั้ง 22 ตัว
 network-info และ client-config option parsing
 invalid port rejection (70000)
 zero context rejection
 stacked cluster prompt (ทดสอบผ่าน pty จริง — พิมพ์ค่าใหม่แล้วมีผล, Enter คงค่าเดิม, ไม่ถามเมื่อไม่มี TTY)
 numeric separator audit
 pipefail/grep-q audit
-audit rules ใหม่ทั้งหมด: 21 scripts, errors=0, warnings=0
+audit rules ใหม่ทั้งหมด: 22 scripts, errors=0, warnings=0
 ```
 
-สถานะ **hardware-tested** ยังคงมีเฉพาะโมเดลที่ผู้ใช้ทดสอบและยืนยันเองบน DGX Spark จริง — การอัปเดตรุ่นนี้ไม่ได้เปิดโมเดลทั้ง 21 ตัวใหม่
+สถานะ **hardware-tested** ยังคงมีเฉพาะโมเดลที่ผู้ใช้ทดสอบและยืนยันเองบน DGX Spark จริง — การอัปเดตรุ่นนี้ไม่ได้เปิดโมเดลทั้ง 22 ตัวใหม่
+
+## Fabric ของ Stacked หาให้เองแล้ว (v3.2.0)
+
+`deepseek-v4-flash-nvfp4-stacked.sh` ไม่ต้องกรอกชื่อ interface เองอีก — หาจาก IP ให้:
+
+```text
+[09:45:02] Fabric interface for 10.100.152.1: enp1s0f1np1
+[09:45:02] RoCE HCA for enp1s0f1np1: rocep1s0f1
+```
+
+เหตุผล: ชื่อพอร์ตบน DGX Spark ยาวและต่างกันทุกเส้น (`enp1s0f1np1` กับ `enP2p1s0f1np1` เป็นคนละ fabric
+บนเครื่องเดียวกัน) พิมพ์ผิดไม่ error — NCCL เงียบ ๆ ตกไปใช้สายบริหารจัดการ · ไม่ตั้ง `NCCL_IB_HCA`
+ก็ตกไปใช้ TCP ทำให้สาย 200G ทำงานได้เท่าอีเทอร์เน็ตธรรมดา ทั้งสองเคส "รันได้" จึงไล่ยากมาก
+
+ตั้งเองยังชนะเสมอ: `NCCL_SOCKET_IFNAME=... NCCL_IB_HCA=... ./deepseek-...sh start`
 
 ## เอกสารอื่น
 
 ```text
+README.en.md       เอกสารภาษาอังกฤษ
+ADDING-GENERATED-CONTROLLERS.md  วิธีเพิ่ม controller ที่ LMDS สร้างเข้าชุดนี้
 AUDIT_REPORT.md    ผลตรวจและสิ่งที่แก้ในรุ่นนี้
 CHANGELOG.md       ประวัติการเปลี่ยนแปลง
 step.md            runbook DeepSeek-V4-Flash 2 โหนด (hardware-validated)
