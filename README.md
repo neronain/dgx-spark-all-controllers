@@ -8,6 +8,24 @@
 
 ทุกตัวใช้มาตรฐานเดียวกัน: ชุดคำสั่งเหมือนกัน, override context/port/bind/IP ได้, มี ASCII banner + คำสั่ง `info`, ไม่ผูกกับชื่อผู้ใช้หรือ IP ของเครื่องผู้พัฒนา
 
+## ที่ทางของรีโปนี้ในระบบ LMDS
+
+รีโปนี้คือ **ชั้น canonical** — คลัง controller ที่ผ่านการ review แล้วของทั้งกอง ·
+[**LMDS**](https://github.com/neronain/AutoDeployDGXProject) `lmds recipes --sync` ดึงจากที่นี่
+ไปเป็น "สูตรที่รันผ่านจริง" ให้ `deploy --no-llm` หยิบ image/parser/mmproj/quant ที่ถูกต้อง
+ไปใช้แทนการเดา — เครื่องที่ไม่มี API key ก็ deploy ได้ตรงรุ่น
+
+```
+เครื่องที่เทสต์ผ่าน ──publish──▶  script-update (candidates)  ──review──▶  dgx-spark-all-controllers (รีโปนี้ · canonical)
+                                                                                   │
+       เครื่องทั้งกอง  ◀──────────────────── lmds recipes --sync ────────────────────┘
+```
+
+- **[`script-update`](https://github.com/neronain/script-update)** (candidates) — ที่พัก
+  controller ที่ `lmds recipes --publish` ส่งขึ้นมา รอ review ก่อนเลื่อนเข้าที่นี่
+- controller ในรีโปนี้ถือ **เฉพาะค่าของโมเดล** (engine, image, parser, mmproj, native
+  default) — ค่าเฉพาะเครื่อง (port/context จริง) override ตอนรันได้ตามหัวข้อ *Context และ Port*
+
 ## เริ่มเร็วที่สุด
 
 ```bash
