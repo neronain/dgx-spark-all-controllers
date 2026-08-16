@@ -1,19 +1,30 @@
-# DGX Spark Controller Collection v3.2.0
+<div align="center">
 
-ชุด Controller สำหรับรันโมเดลบน NVIDIA DGX Spark จำนวน **22 ตัว** — เอาไปใช้งานได้ทันที ไม่ใช่ตัว generate script
+# DGX Spark Controller Collection
 
-ออกแบบโดย **neronain** · <https://www.facebook.com/neronain.minidev>
+**คลัง controller มาตรฐานสำหรับรันโมเดลภาษาบน NVIDIA DGX Spark — เอาไปรันได้ทันที ไม่ใช่ตัว generate**
 
-> 🇬🇧 English: [README.en.md](README.en.md)
+controller หนึ่งตัวต่อหนึ่งโมเดล · ชุดคำสั่งเดียวกันทุกตัว · override port/context/bind ได้ ·
+ไม่ผูกกับชื่อผู้ใช้หรือ IP ของเครื่องผู้พัฒนา — ก๊อปไปวางเครื่องไหนก็รันได้
 
-ทุกตัวใช้มาตรฐานเดียวกัน: ชุดคำสั่งเหมือนกัน, override context/port/bind/IP ได้, มี ASCII banner + คำสั่ง `info`, ไม่ผูกกับชื่อผู้ใช้หรือ IP ของเครื่องผู้พัฒนา
+[![version](https://img.shields.io/badge/version-3.2.0-1f5fbf)](CHANGELOG.md)
+[![controllers](https://img.shields.io/badge/controllers-28-17703f)](#แคตตาล็อก)
+[![tier](https://img.shields.io/badge/tier-canonical-8a5300)](#ที่ทางในระบบ-lmds)
+[![engines](https://img.shields.io/badge/engines-llama.cpp%20·%20vLLM%20·%20SGLang-555)](#แคตตาล็อก)
+[![platform](https://img.shields.io/badge/platform-DGX%20Spark%20·%20GB10-76b900)](#)
 
-## ที่ทางของรีโปนี้ในระบบ LMDS
+**[คู่มือ](USAGE.md)** · **[เพิ่ม controller ใหม่](ADDING-GENERATED-CONTROLLERS.md)** · **[รายงานตรวจสอบ](AUDIT_REPORT.md)** · **[English](README.en.md)**
 
-รีโปนี้คือ **ชั้น canonical** — คลัง controller ที่ผ่านการ review แล้วของทั้งกอง ·
+</div>
+
+---
+
+## ที่ทางในระบบ LMDS
+
+รีโปนี้คือ **ชั้น canonical** — controller ที่ผ่านการ review แล้วของทั้งกอง ·
 [**LMDS**](https://github.com/neronain/AutoDeployDGXProject) `lmds recipes --sync` ดึงจากที่นี่
-ไปเป็น "สูตรที่รันผ่านจริง" ให้ `deploy --no-llm` หยิบ image/parser/mmproj/quant ที่ถูกต้อง
-ไปใช้แทนการเดา — เครื่องที่ไม่มี API key ก็ deploy ได้ตรงรุ่น
+ไปเป็น "สูตรที่รันผ่านจริง" ให้ `deploy --no-llm` หยิบ image/parser/mmproj/quant ที่ถูกต้องไปใช้
+แทนการเดา — เครื่องที่ไม่มี API key ก็ deploy ได้ตรงรุ่น
 
 ```
 เครื่องที่เทสต์ผ่าน ──publish──▶  script-update (candidates)  ──review──▶  dgx-spark-all-controllers (รีโปนี้ · canonical)
@@ -21,355 +32,106 @@
        เครื่องทั้งกอง  ◀──────────────────── lmds recipes --sync ────────────────────┘
 ```
 
-- **[`script-update`](https://github.com/neronain/script-update)** (candidates) — ที่พัก
-  controller ที่ `lmds recipes --publish` ส่งขึ้นมา รอ review ก่อนเลื่อนเข้าที่นี่
-- controller ในรีโปนี้ถือ **เฉพาะค่าของโมเดล** (engine, image, parser, mmproj, native
-  default) — ค่าเฉพาะเครื่อง (port/context จริง) override ตอนรันได้ตามหัวข้อ *Context และ Port*
+| รีโป | บทบาท |
+|---|---|
+| **dgx-spark-all-controllers** (รีโปนี้) | canonical — ผ่าน review แล้ว ทุกเครื่อง `--sync` ไปใช้ |
+| [`script-update`](https://github.com/neronain/script-update) | candidates — controller ที่ `--publish` ส่งขึ้นมา รอ review |
+
+controller ในรีโปนี้ถือ **เฉพาะค่าของโมเดล** — ค่าเฉพาะเครื่อง (port/context จริง) override ตอนรัน
 
 ## เริ่มเร็วที่สุด
 
 ```bash
-chmod +x ./*.sh audit-controllers.py
+chmod +x ./*.sh
 
 # โมเดลอะไร · พอร์ตอะไร · รองรับฟีเจอร์ไหน · รันอยู่หรือยัง
-./qwen3-coder-next-single.sh info
+./qwen3-coder-next-gguf-single.sh info
+
+# วงจรเต็ม: โหลด weight → ตรวจไฟล์ → เตรียม runtime → รัน → ทดสอบ
+./qwen3-coder-next-gguf-single.sh download && \
+./qwen3-coder-next-gguf-single.sh start && \
+./qwen3-coder-next-gguf-single.sh test-text
 ```
 
-ตัวอย่างผลลัพธ์:
+controller รุ่นล่าสุดโหลด weight ด้วย **aria2c หลาย connection ขนาน** (เลี่ยง CDN ที่ throttle
+ต่อ connection · ถอยไป curl อัตโนมัติถ้าไม่มี aria2c) และ **ตรวจขนาดทุกไฟล์** หลังโหลด — ไฟล์
+ที่โหลดไม่ครบถูกจับได้ก่อนจะเอาไป start
 
-```text
-   ____   ____ __  __    ____                   _
-  |  _ \ / ___|\ \/ /   / ___| _ __   __ _ _ __| | __
-  | | | | |  _  \  /    \___ \| '_ \ / _` | '__| |/ /
-  | |_| | |_| | /  \     ___) | |_) | (_| | |  |   <
-  |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
-                              |_|
-       =[ DGX Spark Controller · v3.1.0 ]
-+ -- --=[ Qwen3-Coder-Next (NVFP4-GB10) ]
-+ -- --=[ vLLM (Docker) · code · tools (qwen3_coder) · 256K ctx ]
-+ -- --=[ Designed by neronain · fb.com/neronain.minidev ]
+## แคตตาล็อก
 
-  Model     : Qwen3-Coder-Next (NVFP4-GB10)
-  Model ID  : ucbye/Qwen3-Coder-Next-NVFP4-GB10
-  Runtime   : vLLM (Docker)
-  Features  : code · tools (qwen3_coder) · 256K ctx
-  Context   : 131072 tokens
-  API (v1)  : http://192.168.101.127:8000/v1
-  State     : RUNNING  (port 8000)
+28 controller · แต่ละตัวใช้ชุดคำสั่งเดียวกัน
+
+### llama.cpp · GGUF (single-node)
+
+| controller | โมเดล |
+|---|---|
+| `qwen3-8-27b-gguf` | Qwen3.8 27B — vision · tools · reasoning |
+| `qwen3-6-35b-a3b-gguf` | Qwen3.6 35B-A3B (MoE เร็ว) — vision · tools |
+| `qwen3-coder-next-gguf` | Qwen3-Coder-Next 80B-A3B — agentic coding |
+| `qwen3-coder-30b-a3b-instruct-gguf` | Qwen3-Coder 30B-A3B Instruct |
+| `muse-glimmer-30b-gguf` | Muse Glimmer 30B — creative · vision |
+| `gemma-4-12b-it-gguf` · `gemma-4-26b-a4b-it-gguf` | Gemma 4 (12B · 26B-A4B) |
+| `gpt-oss-120b-f16-single` | GPT-OSS 120B (F16) |
+| `qwen3-vl-32b-thinking` · `qwen36-hauhau-q6kp` | Qwen3-VL 32B · Qwen3.6 Hauhau |
+
+### llama.cpp · uncensored / abliterated
+
+| controller | โมเดล |
+|---|---|
+| `huihui-gpt-oss-120b-abliterated-mxfp4-moe-gguf` | GPT-OSS 120B abliterated (MXFP4) |
+| `huihui-qwen3-coder-30b-a3b-instruct-abliterated-gguf` | Qwen3-Coder 30B abliterated |
+| `gemma-4-31b-it-uncensored-*` · `ornith-1.0-35b-*heretic*` | Gemma 4 31B · Ornith 35B (heretic) |
+
+### vLLM / SGLang · NVFP4 (single-node · DGX Spark)
+
+| controller | โมเดล |
+|---|---|
+| `qwen3-coder-next-nvfp4-gb10-dgx-spark` | Qwen3-Coder-Next NVFP4 (GB10 kernel) |
+| `nemotron-3-super-single` · `nemotron-omni-aeon-single` | NVIDIA Nemotron 3 Super · Omni |
+| `llama33-70b-nvfp4-single` | Llama 3.3 70B NVFP4 |
+| `qwen3-vl-32b-instruct-1m-bf16-dgx-spark` · `ornith-1.0-35b-bf16-dgx-spark` | Qwen3-VL 32B (1M) · Ornith 35B |
+
+### Stacked · หลายเครื่อง (2× DGX Spark)
+
+| controller | โมเดล |
+|---|---|
+| `deepseek-v4-flash-nvfp4-stacked` | DeepSeek-V4-Flash NVFP4 |
+| `minimax-m27-luke-stacked` · `minimax-m3-v0-nvfp4-reap50-stacked` | MiniMax M2.7 · M3 |
+| `gemma4-31b-stacked` | Gemma 4 31B |
+
+> ดูรายการเต็ม + ฟีเจอร์ที่วัดได้จริง: `<controller> info` หรือ [MANIFEST.txt](MANIFEST.txt)
+
+## คำสั่งมาตรฐาน (ทุก controller เหมือนกัน)
+
+```
+info          โมเดล · port · ฟีเจอร์ · สถานะ
+download      โหลด weight (aria2c ขนาน → curl · resume ได้ · ตรวจขนาด)
+verify-files  ตรวจไฟล์ครบและขนาดตรง
+start / stop / restart / status
+test-text · test-tools · test-vision      พิสูจน์ว่าโมเดลทำได้จริง
+client-config  พ่นค่าตั้งต้นให้ OpenAI / Anthropic client
 ```
 
-`State` ตรวจจากการเรียก `http://127.0.0.1:<port>/health` จริง — ไม่ใช่การเดา
+override ได้ทุกตัว: `./<controller> start --port 8010 --context 131072 --bind 0.0.0.0`
 
-ใช้ `info` หรือ `banner` ก็ได้ (ความหมายเดียวกัน)
-
-## ไฟล์ Controller
-
-### Single-node · vLLM (Docker)
-
-```text
-gemma-4-31b-it-uncensored-single.sh                                  Gemma-4-31B Uncensored (Iambackup)
-gemma4-31b-single.sh                                                 Gemma-4-31B-IT NVFP4
-llama33-70b-nvfp4-single.sh                                          Llama-3.3-70B-Instruct NVFP4
-nemotron-3-super-single.sh                                           Nemotron-3-Super-120B-A12B NVFP4
-nemotron-omni-aeon-single.sh                                         Nemotron-3-Nano-Omni AEON NVFP4
-ornith-1.0-35b-uncensored-heretic-nvfp4-fp8dense-gb10-dgx-spark.sh   Ornith-1.0-35B Uncensored NVFP4/FP8
-qwen3-coder-next-nvfp4-gb10-dgx-spark.sh                             Qwen3-Coder-Next NVFP4 (alt-source)
-qwen3-coder-next-single.sh                                           Qwen3-Coder-Next NVFP4-GB10
-```
-
-### Single-node · llama.cpp (GGUF)
-
-```text
-gemma-4-26b-a4b-it-gguf-single.sh                    Gemma-4-26B-A4B-it GGUF (text, alt-source)
-gemma-4-31b-it-uncensored-heretic-q8_0-dgx-spark.sh  Gemma-4-31B Uncensored Heretic Q8_0
-gemma4-26-a4b-q8xl-single.sh                         Gemma-4-26B-A4B-it Q8_K_XL (vision)
-gpt-oss-120b-f16-single.sh                           GPT-OSS-120B F16
-ornith-1.0-35b-bf16-dgx-spark.sh                     Ornith-1.0-35B BF16 (vision)
-qwen3-vl-32b-instruct-1m-bf16-dgx-spark.sh           Qwen3-VL-32B-Instruct-1M BF16 (vision)
-qwen3-vl-32b-thinking-single.sh                      Qwen3-VL-32B-Thinking (vision + thinking)
-qwen36-hauhau-q6kp-single.sh                         Qwen3.6-35B-A3B Uncensored HauhauCS Q6_K_XL
-redteam-modelctl.sh                                  GLM-4.7-Flash Uncensored Heretic NEO-CODE
-```
-
-### Stacked / multi-node (2× DGX Spark)
-
-```text
-deepseek-v4-flash-nvfp4-stacked.sh   DeepSeek-V4-Flash NVFP4 · 1M ctx
-gemma4-31b-stacked.sh                Gemma-4-31B-IT NVFP4
-minimax-m27-luke-stacked.sh          MiniMax-M2.7 NVFP4
-vllm-stackctl.sh                     Llama-3.3-70B-Instruct (generic stacked)
-```
-
-### Stacked / multi-node — SGLang
-
-```text
-minimax-m3-v0-nvfp4-reap50-stacked.sh   MiniMax-M3-v0 NVFP4-REAP50 · 2 โหนด TP=2
-```
-
-## คำสั่งมาตรฐาน
-
-```text
-info | banner    โมเดล/พอร์ต/ฟีเจอร์/สถานะ (เริ่มที่นี่)
-start            เปิดเซิร์ฟเวอร์
-stop | restart   หยุด / เปิดใหม่
-status           สถานะ process หรือ container + API
-logs [N]         log ล่าสุด
-network-info     bind address และ endpoint ที่ประกาศออกไป
-client-config    ค่าตั้งฝั่ง client พร้อม token budget
-download         ดาวน์โหลดน้ำหนักโมเดล (resume ได้)
-help             วิธีใช้ทั้งหมดของตัวนั้น
-```
-
-หลายตัวมีคำสั่งเสริมเฉพาะรุ่น เช่น `verify-files`, `prepare-runtime`, `props`, `bench`, `stress`, `test-text`, `test-reasoning`, `test-image`, `test-tools`, `test-tool-loop`, `doctor`, `sync-worker` — ดูด้วย `help` ของไฟล์นั้น
-
-## Context และ Port
+## ตรวจทั้งชุด
 
 ```bash
-./controller.sh start \
-  --context 65536 \
-  --port 8001
+./verify-all.sh              # bash -n + โครงสร้าง + secret scan ทุก controller
+python3 audit-controllers.py # เทียบกับมาตรฐาน · ออกรายงาน
 ```
 
-ตัวเลือกทั้งหมด:
+## License
 
-```text
---context TOKENS
---port PORT
---bind ADDRESS
---advertise-ip ADDRESS
---interface NAME
---client-input TOKENS|auto
---client-output TOKENS
-```
+controller ในรีโปนี้เป็นเครื่องมือ deploy · โมเดล / image / runtime ของบุคคลที่สามอยู่ใต้ license
+ของเจ้าของนั้น ๆ
 
-ใช้ environment variable ได้เช่นกัน (vLLM ใช้ `MAX_MODEL_LEN`, llama.cpp ใช้ `CTX_SIZE`):
+---
 
-```bash
-MAX_MODEL_LEN=65536 \
-API_PORT=8001 \
-ADVERTISE_INTERFACE=enp1s0 \
-./qwen3-coder-next-single.sh start
-```
+<div align="center">
 
-```bash
-CTX_SIZE=65536 \
-API_PORT=8001 \
-ADVERTISE_INTERFACE=enp1s0 \
-./qwen36-hauhau-q6kp-single.sh start
-```
+ส่วนหนึ่งของ **LMDS · Local Model Deploy Studio** · ออกแบบโดย **neronain**
 
-ทุกตัวปฏิเสธค่าที่ใช้ไม่ได้: port ต้องอยู่ใน 1–65535 และ context ต้องมากกว่า 0
+[facebook.com/neronain.minidev](https://www.facebook.com/neronain.minidev)
 
-## เอาไปใช้บนเครื่องของคุณเอง
-
-สคริปต์ชุดนี้ไม่ผูกกับเครื่องผู้พัฒนา:
-
-- **ชื่อผู้ใช้** — `SSH_USER` ใช้ค่าเริ่มต้นเป็นผู้ใช้ปัจจุบัน (`${USER:-$(id -un)}`) ไม่ใช่ชื่อที่ hard-code ไว้ · path ต่าง ๆ อ้างจาก `$HOME` (override ได้ด้วย `USER_HOME`)
-- **IP ของ cluster** — Stacked controller จะ **ถามตอน `start` / `restart`** ถ้ารันบน terminal จริง
-- **พอร์ตและ context** — override ได้ทุกตัวตามหัวข้อด้านบน
-
-### Stacked: ถาม Head / Worker / SSH user
-
-```text
-== Cluster configuration (press Enter to keep the current value) ==
-  Head (master) node IP [10.100.152.1]: 192.168.101.127
-  Worker node IP        [10.100.152.2]: 192.168.101.128
-  SSH user for nodes    [dgxuser]:
-```
-
-- กด Enter = ใช้ค่าเดิม
-- ถามเฉพาะ `start` และ `restart` เท่านั้น — คำสั่งอื่นเช่น `info`, `status`, `logs` ไม่ถาม
-- ถามเฉพาะเมื่อ stdin เป็น TTY ดังนั้น cron/automation จะไม่ค้าง
-
-รันแบบไม่ถาม (สำหรับ automation) ให้กำหนดค่าผ่าน env และปิด stdin:
-
-```bash
-MASTER_IP=192.168.101.127 \
-WORKER_IP=192.168.101.128 \
-SSH_USER=dgxuser \
-./deepseek-v4-flash-nvfp4-stacked.sh start </dev/null
-```
-
-ค่าจาก env ชนะค่าที่ถามเสมอเมื่อรันแบบไม่มี TTY
-
-## การเลือก IP ที่ประกาศให้ client
-
-ระบบไม่ใช้ IP ตายตัว และไม่ใช้ IP ตัวแรกจาก `hostname -I` เป็นวิธีหลัก
-
-ลำดับการเลือก:
-
-1. `--advertise-ip`
-2. `--interface`
-3. source address จาก `ip route get 1.1.1.1`
-4. global IPv4 ที่ไม่ใช่ Docker/CNI/cluster-like interface
-5. `hostname -I` เฉพาะ fallback สุดท้าย
-
-ตรวจก่อนรัน:
-
-```bash
-./qwen36-hauhau-q6kp-single.sh network-info
-```
-
-บังคับ interface หรือ IP:
-
-```bash
-./qwen36-hauhau-q6kp-single.sh start --context 131072 --port 8001 --interface enp1s0
-./qwen36-hauhau-q6kp-single.sh start --advertise-ip 192.168.101.127 --port 8001
-```
-
-## Bind กับ Advertise แยกกัน
-
-`--bind` = address ที่เซิร์ฟเวอร์ฟังจริง
-
-`--advertise-ip` / `--interface` = URL ที่แสดงให้ Hermes, OpenClaw, Cline และเครื่องอื่นใช้
-
-ค่าที่แนะนำ:
-
-```bash
-./controller.sh start --bind 0.0.0.0 --interface enp1s0 --port 8000
-```
-
-## DGX หลายเครื่อง
-
-DGX สองเครื่องใช้ port เดียวกันได้เพราะเป็นคนละ IP:
-
-```text
-DGX-1  192.168.101.127:8000
-DGX-2  192.168.101.128:8000
-```
-
-สำหรับ Stacked Controller ค่า `MASTER_IP` / `WORKER_IP` ใช้สื่อสารภายใน cluster ส่วน public API URL ใช้ advertised address แยกกัน
-
-```bash
-./minimax-m27-luke-stacked.sh start --context 65536 --port 8000 --interface enp1s0
-```
-
-## Client token budget
-
-เมื่อใช้ `--client-input auto` สคริปต์คำนวณ:
-
-```text
-client input = server context - max output - 8192 overhead
-```
-
-ตัวอย่าง:
-
-```text
-context      65536
-max output    8192
-overhead      8192
-client input 49152
-```
-
-สคริปต์ปฏิเสธค่าที่ input + output มากกว่า server context
-
-## ปัญหา Bash numeric separator
-
-Bash arithmetic ไม่รองรับ underscore ในตัวเลข:
-
-```bash
-(( model_size > 25_000_000_000 ))   # error: value too great for base
-```
-
-ทั้ง 22 ตัวไม่มี pure numeric literal ที่ใช้ underscore เหลืออยู่ · ค่าขนาดไฟล์ใช้ decimal ปกติ:
-
-```bash
-MODEL_SIZE_BYTES="30649317504"
-MMPROJ_SIZE_BYTES="899283072"
-```
-
-รุ่น GGUF ที่มี exact metadata จะตรวจ exact byte size, GGUF magic header และ SHA-256
-
-## ตรวจทั้งหมด
-
-```bash
-./verify-all.sh
-```
-
-ผลที่ต้องได้:
-
-```text
-Audited 22 scripts: errors=0, warnings=0
-All 22 DGX controllers passed static validation.
-```
-
-`verify-all.sh` ตรวจทุกตัว: `bash -n`, `help`, `info` (ต้องมี banner + Model/Runtime/Features/State), `network-info`, `client-config`, ปฏิเสธ port 70000, ปฏิเสธ context 0, Stacked ต้องมี `prompt_cluster_config` และต้องไม่ถามตอนสั่ง `info` และต้องไม่มีชื่อผู้ใช้ hard-code เหลือ
-
-ตรวจ Controller ในเครื่อง:
-
-```bash
-python3 audit-controllers.py "$HOME"
-python3 audit-controllers.py "$HOME" --json
-```
-
-Audit ครอบคลุม:
-
-```text
-Bash syntax
-numeric separators
-pipefail + grep -q
-hard-coded single-node MASTER_IP
-context/port ที่ override ไม่ได้
-missing --context / --port
-missing network-info
-การเลือก IP จาก hostname -I โดยตรง
-missing SCRIPT_VERSION
-missing banner()/info() หรือ dispatch info|banner)
-hard-coded ชื่อผู้ใช้ของผู้พัฒนา
-stacked ที่ไม่มี prompt_cluster_config()
-```
-
-## ติดตั้งไปยังเครื่องเป้าหมาย
-
-```bash
-./install-canonical.sh "$HOME"
-```
-
-สำรองไฟล์ชื่อเดียวกันไว้ที่ `<target>/controller-backups/<timestamp>/` ก่อนเขียนทับ และ**ไม่**หยุดหรือ restart โมเดลที่กำลังทำงาน
-
-## Validation scope
-
-ผ่านแล้ว (static, ทำบนเครื่องพัฒนา):
-
-```text
-bash -n ทั้ง 22 Controller
-help routing
-info / banner ทั้ง 22 ตัว
-network-info และ client-config option parsing
-invalid port rejection (70000)
-zero context rejection
-stacked cluster prompt (ทดสอบผ่าน pty จริง — พิมพ์ค่าใหม่แล้วมีผล, Enter คงค่าเดิม, ไม่ถามเมื่อไม่มี TTY)
-numeric separator audit
-pipefail/grep-q audit
-audit rules ใหม่ทั้งหมด: 22 scripts, errors=0, warnings=0
-```
-
-สถานะ **hardware-tested** ยังคงมีเฉพาะโมเดลที่ผู้ใช้ทดสอบและยืนยันเองบน DGX Spark จริง — การอัปเดตรุ่นนี้ไม่ได้เปิดโมเดลทั้ง 22 ตัวใหม่
-
-## Fabric ของ Stacked หาให้เองแล้ว (v3.2.0)
-
-`deepseek-v4-flash-nvfp4-stacked.sh` ไม่ต้องกรอกชื่อ interface เองอีก — หาจาก IP ให้:
-
-```text
-[09:45:02] Fabric interface for 10.100.152.1: enp1s0f1np1
-[09:45:02] RoCE HCA for enp1s0f1np1: rocep1s0f1
-```
-
-เหตุผล: ชื่อพอร์ตบน DGX Spark ยาวและต่างกันทุกเส้น (`enp1s0f1np1` กับ `enP2p1s0f1np1` เป็นคนละ fabric
-บนเครื่องเดียวกัน) พิมพ์ผิดไม่ error — NCCL เงียบ ๆ ตกไปใช้สายบริหารจัดการ · ไม่ตั้ง `NCCL_IB_HCA`
-ก็ตกไปใช้ TCP ทำให้สาย 200G ทำงานได้เท่าอีเทอร์เน็ตธรรมดา ทั้งสองเคส "รันได้" จึงไล่ยากมาก
-
-ตั้งเองยังชนะเสมอ: `NCCL_SOCKET_IFNAME=... NCCL_IB_HCA=... ./deepseek-...sh start`
-
-## เอกสารอื่น
-
-```text
-README.en.md       เอกสารภาษาอังกฤษ
-ADDING-GENERATED-CONTROLLERS.md  วิธีเพิ่ม controller ที่ LMDS สร้างเข้าชุดนี้
-AUDIT_REPORT.md    ผลตรวจและสิ่งที่แก้ในรุ่นนี้
-CHANGELOG.md       ประวัติการเปลี่ยนแปลง
-step.md            runbook DeepSeek-V4-Flash 2 โหนด (hardware-validated)
-skills_Strack.md   skill/playbook การทำ stacked controller
-MANIFEST.txt       รายการไฟล์ในแพ็ก
-PACKAGE_SHA256SUMS ค่า SHA-256 ของทุกไฟล์
-```
+</div>
