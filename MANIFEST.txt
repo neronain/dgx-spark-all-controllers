@@ -1,14 +1,14 @@
-DGX Spark Controller Collection v3.2.0
+DGX Spark Controller Collection v3.3.0
 Designed by neronain - https://www.facebook.com/neronain.minidev
 
 Documentation
-  AUDIT_REPORT.md
   ADDING-GENERATED-CONTROLLERS.md
+  AUDIT_REPORT.md
   CHANGELOG.md
   MANIFEST.txt
   PACKAGE_SHA256SUMS
-  README.md
   README.en.md
+  README.md
   SKILL_UPDATE.md
   skills_Strack.md
   step.md
@@ -29,11 +29,24 @@ Controllers - single-node, vLLM (Docker)
   qwen3-coder-next-single.sh
 
 Controllers - single-node, llama.cpp (GGUF)
+  gemma-4-12b-it-gguf-single.sh
   gemma-4-26b-a4b-it-gguf-single.sh
   gemma-4-31b-it-uncensored-heretic-q8_0-dgx-spark.sh
   gemma4-26-a4b-q8xl-single.sh
   gpt-oss-120b-f16-single.sh
+  huihui-ai-qwen3-coder-next-abliterated-gguf-single.sh
+  huihui-gpt-oss-120b-abliterated-mxfp4-moe-gguf-single.sh
+  huihui-qwen3-coder-30b-a3b-instruct-abliterated-gguf-single.sh
+  muse-glimmer-30b-gguf-single.sh
+  ornith-1-5-35b-a3b-abliterated-gguf-single.sh
   ornith-1.0-35b-bf16-dgx-spark.sh
+  qwen3-6-35b-a3b-gguf-single.sh
+  qwen3-6-40b-claude-4-6-opus-deckard-heretic-uncensored-thinking-neo-code-di-imatrix-max-gguf-single.sh
+  qwen3-8-27b-gguf-single.sh
+  qwen3-8-27b-heretic-abliterated-uncensored-gguf-single.sh
+  qwen3-8-27b-uncensored-gguf-single.sh
+  qwen3-coder-30b-a3b-instruct-gguf-single.sh
+  qwen3-coder-next-gguf-single.sh
   qwen3-vl-32b-instruct-1m-bf16-dgx-spark.sh
   qwen3-vl-32b-thinking-single.sh
   qwen36-hauhau-q6kp-single.sh
@@ -48,4 +61,4 @@ Controllers - stacked / multi-node (2x DGX Spark)
 Controllers - stacked / multi-node, SGLang (Docker)
   minimax-m3-v0-nvfp4-reap50-stacked.sh
 
-Total: 22 controllers, 3 tools, 10 documents
+Total: 35 controllers, 3 tools, 10 documents

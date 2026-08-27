@@ -1,4 +1,4 @@
-# DGX Spark Controller Collection v3.2.0
+# DGX Spark Controller Collection v3.3.0
 
 **22 ready-to-run controllers** for serving models on NVIDIA DGX Spark. This is not a script
 generator — every file here is a finished controller that was written, hardened and used on real
@@ -28,7 +28,7 @@ chmod +x ./*.sh audit-controllers.py
   | |_| | |_| | /  \     ___) | |_) | (_| | |  |   <
   |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
                               |_|
-       =[ DGX Spark Controller · v3.2.0 ]
+       =[ DGX Spark Controller · v3.3.0 ]
 + -- --=[ Qwen3-Coder-Next (NVFP4-GB10) ]
 + -- --=[ vLLM (Docker) · code · tools (qwen3_coder) · 256K ctx ]
 
@@ -105,7 +105,7 @@ MASTER_IP=192.168.101.127 WORKER_IP=192.168.101.128 SSH_USER=dgxuser \
   ./deepseek-v4-flash-nvfp4-stacked.sh start </dev/null
 ```
 
-## Fabric discovery on stacked controllers (v3.2.0)
+## Fabric discovery on stacked controllers (v3.3.0)
 
 `deepseek-v4-flash-nvfp4-stacked.sh` no longer needs the interface name typed in — it derives it
 from the transport IP, and asks the worker for its own name over SSH:

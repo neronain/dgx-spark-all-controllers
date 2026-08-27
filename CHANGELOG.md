@@ -1,5 +1,48 @@
 # Changelog
 
+## 3.3.0 — 2026-08-28
+
+โมเดลใหม่ 5 ตัวจาก LMDS ที่เสิร์ฟทราฟฟิกจริงมาแล้ว และการปิดช่องที่ทำให้ของใหม่
+หลุดการตรวจไปเงียบ ๆ · ออกแบบโดย neronain · <https://www.facebook.com/neronain.minidev>
+
+### Added — controller ใหม่ 5 ตัว (llama.cpp / GGUF)
+
+ทุกตัวมาจาก bundle ที่ LMDS สร้าง แล้ว **ถูกใช้งานจริงบน DGX Spark (GB10)** —
+จำนวนคำขอนับจาก `server.log` ของเครื่องนั้น ไม่ใช่จากการที่มัน start ขึ้นได้
+
+| controller | เครื่องที่รัน | คำขอที่เสิร์ฟจริง |
+|---|---|---|
+| `qwen3-6-40b-claude-…-imatrix-max-gguf-single.sh` | spark-head | 886 · prompt เดียว 118,710 token |
+| `huihui-ai-qwen3-coder-next-abliterated-gguf-single.sh` | msi-6 | 848 |
+| `qwen3-8-27b-uncensored-gguf-single.sh` | msi-5 | 627 |
+| `qwen3-8-27b-heretic-abliterated-uncensored-gguf-single.sh` | spark-worker | 603 |
+| `ornith-1-5-35b-a3b-abliterated-gguf-single.sh` | spark-head | 83 |
+
+อีก 2 ตัวที่ generate ไว้แล้ว (`gemma4-26b-a4b-qat-…-mtp`,
+`qwen3-6-35b-a3b-uncensored-heretic-…-apex`) **ไม่ได้เข้าคลังนี้** — โหลดโมเดลขึ้นได้
+แต่ยังไม่เคยรับคำขอจริง จึงไปพักที่ [script-update](https://github.com/neronain/script-update)
+ตามเกณฑ์ใน `ADDING-GENERATED-CONTROLLERS.md` ที่ว่าด่านของรีโปนี้คือ "มีคนเสิร์ฟ
+ทราฟฟิกจริงด้วยมัน" ไม่ใช่ "ผ่าน audit"
+
+### Fixed — ของใหม่ 13 ตัวไม่เคยถูกตรวจเลย
+
+- `verify-all.sh` เคยถือ **รายชื่อไฟล์ที่พิมพ์ด้วยมือ** · วันที่ตรวจพบ โฟลเดอร์มี 35
+  controller แต่ในไฟล์เขียนไว้ 22 — ทุกตัวที่เพิ่มเข้ามาจาก bundle ของ LMDS จึงไม่เคย
+  ผ่านสคริปต์ที่มีหน้าที่ตรวจมันเลย · ตอนนี้มัน **ไล่จากไฟล์จริงในโฟลเดอร์** และแยก
+  stacked ด้วยการดูว่ามี `prompt_cluster_config` ไหม ไม่ใช่เดาจากชื่อไฟล์
+- ด่าน banner บังคับข้อความ `DGX Spark Controller` ตัวเดียว ทำให้ controller ที่ LMDS
+  สร้าง (ซึ่งพิมพ์ `LMDS controller · vX.Y`) ตกทุกตัว · รีโปนี้รับตัว generated เป็น
+  พลเมืองชั้นหนึ่งอยู่แล้ว ด่านจึงควรตรวจ *สิ่งที่ผู้ใช้อ่าน* (มี banner, มีบรรทัด
+  Model/Runtime/Features/State) ไม่ใช่ชื่อผลิตภัณฑ์
+
+### Fixed — เอกสารตามของจริงไม่ทัน
+
+- `MANIFEST.txt` นับ 22 ตัวขณะที่มี 35 · `README.md` ค้างที่ v3.1.0 เขียนว่า "21 ตัว"
+  และไม่มี 14 ตัวที่เพิ่มมาหลังจากนั้น · ทั้งสองไฟล์ถูก **สร้างจากไฟล์จริง** แล้ว
+  ไม่ใช่พิมพ์ตามกันมา
+- README เพิ่มหัวข้อ `Stacked / multi-node · SGLang (Docker)` ซึ่งมี controller อยู่
+  ตั้งแต่ 3.2.0 แต่ไม่เคยถูกลงรายการ
+
 ## 3.2.0 — 2026-08-05
 
 Fabric auto-discovery, one new runtime, and a documented path for controllers

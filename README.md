@@ -1,6 +1,6 @@
-# DGX Spark Controller Collection v3.1.0
+# DGX Spark Controller Collection v3.3.0
 
-ชุด Controller สำหรับรันโมเดลบน NVIDIA DGX Spark จำนวน **21 ตัว** — เอาไปใช้งานได้ทันที ไม่ใช่ตัว generate script
+ชุด Controller สำหรับรันโมเดลบน NVIDIA DGX Spark จำนวน **35 ตัว** — เอาไปใช้งานได้ทันที ไม่ใช่ตัว generate script
 
 ออกแบบโดย **neronain** · <https://www.facebook.com/neronain.minidev>
 
@@ -24,7 +24,7 @@ chmod +x ./*.sh audit-controllers.py
   | |_| | |_| | /  \     ___) | |_) | (_| | |  |   <
   |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
                               |_|
-       =[ DGX Spark Controller · v3.1.0 ]
+       =[ DGX Spark Controller · v3.3.0 ]
 + -- --=[ Qwen3-Coder-Next (NVFP4-GB10) ]
 + -- --=[ vLLM (Docker) · code · tools (qwen3_coder) · 256K ctx ]
 + -- --=[ Designed by neronain · fb.com/neronain.minidev ]
@@ -47,14 +47,14 @@ chmod +x ./*.sh audit-controllers.py
 ### Single-node · vLLM (Docker)
 
 ```text
-gemma-4-31b-it-uncensored-single.sh                                  Gemma-4-31B Uncensored (Iambackup)
-gemma4-31b-single.sh                                                 Gemma-4-31B-IT NVFP4
-llama33-70b-nvfp4-single.sh                                          Llama-3.3-70B-Instruct NVFP4
-nemotron-3-super-single.sh                                           Nemotron-3-Super-120B-A12B NVFP4
-nemotron-omni-aeon-single.sh                                         Nemotron-3-Nano-Omni AEON NVFP4
-ornith-1.0-35b-uncensored-heretic-nvfp4-fp8dense-gb10-dgx-spark.sh   Ornith-1.0-35B Uncensored NVFP4/FP8
-qwen3-coder-next-nvfp4-gb10-dgx-spark.sh                             Qwen3-Coder-Next NVFP4 (alt-source)
-qwen3-coder-next-single.sh                                           Qwen3-Coder-Next NVFP4-GB10
+gemma-4-31b-it-uncensored-single.sh                     Gemma-4-31B Uncensored (Iambackup)
+gemma4-31b-single.sh                                    Gemma-4-31B-IT NVFP4
+llama33-70b-nvfp4-single.sh                             Llama-3.3-70B-Instruct NVFP4
+nemotron-3-super-single.sh                              Nemotron-3-Super-120B-A12B NVFP4
+nemotron-omni-aeon-single.sh                            Nemotron-3-Nano-Omni AEON NVFP4
+ornith-1.0-35b-uncensored-heretic-nvfp4-fp8dense-gb10-dgx-spark.sh  Ornith-1.0-35B Uncensored NVFP4/FP8
+qwen3-coder-next-nvfp4-gb10-dgx-spark.sh                Qwen3-Coder-Next NVFP4 (alt-source)
+qwen3-coder-next-single.sh                              Qwen3-Coder-Next NVFP4-GB10
 ```
 
 ### Single-node · llama.cpp (GGUF)
@@ -62,24 +62,45 @@ qwen3-coder-next-single.sh                                           Qwen3-Coder
 ตัวเหล่านี้ใช้ `--jinja` ในการเสิร์ฟ — เพื่อให้ llama.cpp ใช้ tool/function-calling template ของโมเดลได้ถูกต้อง (วิธีหนึ่ง modern llama.cpp ใช้)
 
 ```text
-gemma-4-26b-a4b-it-gguf-single.sh                    Gemma-4-26B-A4B-it GGUF (text, alt-source)
-gemma-4-31b-it-uncensored-heretic-q8_0-dgx-spark.sh  Gemma-4-31B Uncensored Heretic Q8_0
-gemma4-26-a4b-q8xl-single.sh                         Gemma-4-26B-A4B-it Q8_K_XL (vision)
-gpt-oss-120b-f16-single.sh                           GPT-OSS-120B F16
-ornith-1.0-35b-bf16-dgx-spark.sh                     Ornith-1.0-35B BF16 (vision)
-qwen3-vl-32b-instruct-1m-bf16-dgx-spark.sh           Qwen3-VL-32B-Instruct-1M BF16 (vision)
-qwen3-vl-32b-thinking-single.sh                      Qwen3-VL-32B-Thinking (vision + thinking)
-qwen36-hauhau-q6kp-single.sh                         Qwen3.6-35B-A3B Uncensored HauhauCS Q6_K_XL
-redteam-modelctl.sh                                  GLM-4.7-Flash Uncensored Heretic NEO-CODE
+gemma-4-12b-it-gguf-single.sh                           Gemma-4-12B-it GGUF (vision · tools)
+gemma-4-26b-a4b-it-gguf-single.sh                       Gemma-4-26B-A4B-it GGUF (text, alt-source)
+gemma-4-31b-it-uncensored-heretic-q8_0-dgx-spark.sh     Gemma-4-31B Uncensored Heretic Q8_0
+gemma4-26-a4b-q8xl-single.sh                            Gemma-4-26B-A4B-it Q8_K_XL (vision)
+gpt-oss-120b-f16-single.sh                              GPT-OSS-120B F16
+huihui-ai-qwen3-coder-next-abliterated-gguf-single.sh   Qwen3-Coder-Next Abliterated Q8_0 (3 ชิ้น)
+huihui-gpt-oss-120b-abliterated-mxfp4-moe-gguf-single.sh  GPT-OSS-120B Abliterated MXFP4 MoE
+huihui-qwen3-coder-30b-a3b-instruct-abliterated-gguf-single.sh  Qwen3-Coder-30B-A3B Abliterated
+muse-glimmer-30b-gguf-single.sh                         Muse-Glimmer-30B GGUF
+ornith-1-5-35b-a3b-abliterated-gguf-single.sh           Ornith-1.5-35B-A3B Abliterated Q8_0 (vision · MoE)
+ornith-1.0-35b-bf16-dgx-spark.sh                        Ornith-1.0-35B BF16 (vision)
+qwen3-6-35b-a3b-gguf-single.sh                          Qwen3.6-35B-A3B GGUF
+qwen3-6-40b-claude-4-6-opus-deckard-heretic-uncensored-thinking-neo-code-di-imatrix-max-gguf-single.sh  Qwen3.6-40B Deckard-Opus NEO-CODE Q8_0 (thinking)
+qwen3-8-27b-gguf-single.sh                              Qwen3.8-27B GGUF
+qwen3-8-27b-heretic-abliterated-uncensored-gguf-single.sh  Qwen3.8-27B Heretic Abliterated Q6_K (MTP)
+qwen3-8-27b-uncensored-gguf-single.sh                   Qwen3.8-27B Uncensored Q8_0
+qwen3-coder-30b-a3b-instruct-gguf-single.sh             Qwen3-Coder-30B-A3B-Instruct GGUF
+qwen3-coder-next-gguf-single.sh                         Qwen3-Coder-Next GGUF
+qwen3-vl-32b-instruct-1m-bf16-dgx-spark.sh              Qwen3-VL-32B-Instruct-1M BF16 (vision)
+qwen3-vl-32b-thinking-single.sh                         Qwen3-VL-32B-Thinking (vision + thinking)
+qwen36-hauhau-q6kp-single.sh                            Qwen3.6-35B-A3B Uncensored HauhauCS Q6_K_XL
+redteam-modelctl.sh                                     GLM-4.7-Flash Uncensored Heretic NEO-CODE
 ```
 
 ### Stacked / multi-node (2× DGX Spark)
 
 ```text
-deepseek-v4-flash-nvfp4-stacked.sh   DeepSeek-V4-Flash NVFP4 · 1M ctx
-gemma4-31b-stacked.sh                Gemma-4-31B-IT NVFP4
-minimax-m27-luke-stacked.sh          MiniMax-M2.7 NVFP4
-vllm-stackctl.sh                     Llama-3.3-70B-Instruct (generic stacked)
+deepseek-v4-flash-nvfp4-stacked.sh                      DeepSeek-V4-Flash NVFP4 · 1M ctx
+gemma4-31b-stacked.sh                                   Gemma-4-31B-IT NVFP4
+minimax-m27-luke-stacked.sh                             MiniMax-M2.7 NVFP4
+vllm-stackctl.sh                                        Llama-3.3-70B-Instruct (generic stacked)
+```
+
+### Stacked / multi-node · SGLang (Docker)
+
+SGLang เสิร์ฟ safetensors เหมือน vLLM แต่คนละชุดธง — checkpoint บางตระกูล (NVFP4 ที่ calibrate ด้วย w1/w3 scale) รันถูกต้องเฉพาะบน SGLang
+
+```text
+minimax-m3-v0-nvfp4-reap50-stacked.sh                   MiniMax-M3-v0 NVFP4-REAP50 (SGLang)
 ```
 
 ## คำสั่งมาตรฐาน
@@ -247,7 +268,7 @@ Bash arithmetic ไม่รองรับ underscore ในตัวเลข:
 (( model_size > 25_000_000_000 ))   # error: value too great for base
 ```
 
-ทั้ง 21 ตัวไม่มี pure numeric literal ที่ใช้ underscore เหลืออยู่ · ค่าขนาดไฟล์ใช้ decimal ปกติ:
+ทั้ง 35 ตัวไม่มี pure numeric literal ที่ใช้ underscore เหลืออยู่ · ค่าขนาดไฟล์ใช้ decimal ปกติ:
 
 ```bash
 MODEL_SIZE_BYTES="30649317504"
@@ -265,8 +286,8 @@ MMPROJ_SIZE_BYTES="899283072"
 ผลที่ต้องได้:
 
 ```text
-Audited 21 scripts: errors=0, warnings=0
-All 21 DGX controllers passed static validation.
+Audited 35 scripts: errors=0, warnings=0
+All 35 DGX controllers passed static validation.
 ```
 
 `verify-all.sh` ตรวจทุกตัว: `bash -n`, `help`, `info` (ต้องมี banner + Model/Runtime/Features/State), `network-info`, `client-config`, ปฏิเสธ port 70000, ปฏิเสธ context 0, Stacked ต้องมี `prompt_cluster_config` และต้องไม่ถามตอนสั่ง `info` และต้องไม่มีชื่อผู้ใช้ hard-code เหลือ
@@ -308,19 +329,19 @@ stacked ที่ไม่มี prompt_cluster_config()
 ผ่านแล้ว (static, ทำบนเครื่องพัฒนา):
 
 ```text
-bash -n ทั้ง 21 Controller
+bash -n ทั้ง 35 Controller
 help routing
-info / banner ทั้ง 21 ตัว
+info / banner ทั้ง 35 ตัว
 network-info และ client-config option parsing
 invalid port rejection (70000)
 zero context rejection
 stacked cluster prompt (ทดสอบผ่าน pty จริง — พิมพ์ค่าใหม่แล้วมีผล, Enter คงค่าเดิม, ไม่ถามเมื่อไม่มี TTY)
 numeric separator audit
 pipefail/grep-q audit
-audit rules ใหม่ทั้งหมด: 21 scripts, errors=0, warnings=0
+audit rules ใหม่ทั้งหมด: 35 scripts, errors=0, warnings=0
 ```
 
-สถานะ **hardware-tested** ยังคงมีเฉพาะโมเดลที่ผู้ใช้ทดสอบและยืนยันเองบน DGX Spark จริง — การอัปเดตรุ่นนี้ไม่ได้เปิดโมเดลทั้ง 21 ตัวใหม่
+สถานะ **hardware-tested** ยังคงมีเฉพาะโมเดลที่ผู้ใช้ทดสอบและยืนยันเองบน DGX Spark จริง — การอัปเดตรุ่นนี้ไม่ได้เปิดโมเดลทั้ง 35 ตัวใหม่
 
 ## ระบบทั้งหมด — 4 repo ทำงานร่วมกัน
 
@@ -335,7 +356,7 @@ audit rules ใหม่ทั้งหมด: 21 scripts, errors=0, warnings=0
 
 **ลำดับการไหลเวียน:** LMDS deploy → ตัวที่พิสูจน์แล้ว publish ไป script-update (candidates) → promote ขึ้น repo นี้ (canonical) → ทุกเครื่อง `lmds recipes --sync` จากที่นี่ · LiteGate เสิร์ฟ+วัดความสามารถจริง
 
-ทุก controller ที่นี่ (vLLM และ llama.cpp) ใช้มาตรฐาน v3.1.0 เหมือนกัน — มี `--jinja` สำหรับ tool-calling template ของ llama.cpp, `info` command, standard override option ทั้งหมด
+ทุก controller ที่นี่ (vLLM และ llama.cpp) ใช้มาตรฐาน v3.3.0 เหมือนกัน — มี `--jinja` สำหรับ tool-calling template ของ llama.cpp, `info` command, standard override option ทั้งหมด
 
 ## เอกสารอื่น
 

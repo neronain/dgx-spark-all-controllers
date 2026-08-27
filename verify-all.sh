@@ -6,38 +6,44 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_IP="${TEST_IP:-192.0.2.10}"
 
-# Single-node controllers
-singles=(
-  gemma-4-26b-a4b-it-gguf-single.sh
-  gemma-4-31b-it-uncensored-heretic-q8_0-dgx-spark.sh
-  gemma-4-31b-it-uncensored-single.sh
-  gemma4-26-a4b-q8xl-single.sh
-  gemma4-31b-single.sh
-  gpt-oss-120b-f16-single.sh
-  llama33-70b-nvfp4-single.sh
-  nemotron-3-super-single.sh
-  nemotron-omni-aeon-single.sh
-  ornith-1.0-35b-bf16-dgx-spark.sh
-  ornith-1.0-35b-uncensored-heretic-nvfp4-fp8dense-gb10-dgx-spark.sh
-  qwen3-coder-next-nvfp4-gb10-dgx-spark.sh
-  qwen3-coder-next-single.sh
-  qwen3-vl-32b-instruct-1m-bf16-dgx-spark.sh
-  qwen3-vl-32b-thinking-single.sh
-  qwen36-hauhau-q6kp-single.sh
-  redteam-modelctl.sh
-)
+# Controllers are *discovered*, not listed.
+#
+# The list used to be written out by hand, and it fell behind: on 2026-08-28 the
+# directory held 35 controllers while this file named 22, so 13 of them — every
+# one added from an LMDS bundle — was never verified by the script whose whole
+# job is to verify them. A list that has to be updated by hand is a list that
+# eventually disagrees with the directory, and it fails silently in the
+# direction that matters: new files go unchecked.
+#
+# Anything ending in .sh that is not one of this repository's own tools is a
+# controller and gets the full treatment.
+tools=("verify-all.sh" "install-canonical.sh")
 
-# Stacked / multi-node controllers. `start` and `restart` ask for the cluster
-# addresses on a TTY, so every check below runs with stdin redirected.
-stacked=(
-  deepseek-v4-flash-nvfp4-stacked.sh
-  gemma4-31b-stacked.sh
-  minimax-m3-v0-nvfp4-reap50-stacked.sh
-  minimax-m27-luke-stacked.sh
-  vllm-stackctl.sh
-)
+singles=()
+stacked=()
+for path in "$ROOT"/*.sh; do
+  name="$(basename "$path")"
+  skip=""
+  for tool in "${tools[@]}"; do [[ "$name" == "$tool" ]] && skip=1; done
+  [[ -n "$skip" ]] && continue
+  # Stacked controllers are the ones that ask for cluster addresses. Detect that
+  # property directly rather than trusting the filename — a bundle generated for
+  # two nodes may not be named "-stacked".
+  if grep -q 'prompt_cluster_config' "$path"; then
+    stacked+=("$name")
+  else
+    singles+=("$name")
+  fi
+done
 
 controllers=("${singles[@]}" "${stacked[@]}")
+
+if (( ${#controllers[@]} == 0 )); then
+  echo "ERROR: no controllers found in ${ROOT}" >&2
+  exit 1
+fi
+echo "Found ${#controllers[@]} controllers (${#singles[@]} single-node, ${#stacked[@]} stacked)"
+echo
 
 for script in "${controllers[@]}"; do
   path="${ROOT}/${script}"
@@ -65,7 +71,14 @@ for script in "${controllers[@]}"; do
 
   # Branding + runtime facts: model, port, features, live state.
   info_out="$(bash "$path" info </dev/null 2>&1)"
-  grep -q 'DGX Spark Controller' <<<"$info_out" ||
+  # Either banner is valid. The hand-written controllers print "DGX Spark
+  # Controller · vX.Y.Z"; the ones LMDS generates print "LMDS controller · vX.Y".
+  # Both carry the same four lines a student actually reads — version, model,
+  # runtime + features, author — and this repository accepts generated
+  # controllers on purpose (see ADDING-GENERATED-CONTROLLERS.md). Demanding one
+  # product string meant every generated controller failed here, which is why
+  # they were quietly left out of the hand-written list instead.
+  grep -qE 'DGX Spark Controller|LMDS controller' <<<"$info_out" ||
     { echo "ERROR: ${script} info is missing the banner" >&2; exit 1; }
   for field in 'Model     :' 'Runtime   :' 'Features  :' 'State     :'; do
     grep -q "$field" <<<"$info_out" ||
