@@ -1,4 +1,4 @@
-# DGX Spark Controller Collection v3.3.0
+# DGX Spark Controller Collection v3.3.1
 
 ชุด Controller สำหรับรันโมเดลบน NVIDIA DGX Spark จำนวน **35 ตัว** — เอาไปใช้งานได้ทันที ไม่ใช่ตัว generate script
 
@@ -24,7 +24,7 @@ chmod +x ./*.sh audit-controllers.py
   | |_| | |_| | /  \     ___) | |_) | (_| | |  |   <
   |____/ \____|/_/\_\   |____/| .__/ \__,_|_|  |_|\_\
                               |_|
-       =[ DGX Spark Controller · v3.3.0 ]
+       =[ DGX Spark Controller · v3.3.1 ]
 + -- --=[ Qwen3-Coder-Next (NVFP4-GB10) ]
 + -- --=[ vLLM (Docker) · code · tools (qwen3_coder) · 256K ctx ]
 + -- --=[ Designed by neronain · fb.com/neronain.minidev ]
@@ -113,9 +113,20 @@ status           สถานะ process หรือ container + API
 logs [N]         log ล่าสุด
 network-info     bind address และ endpoint ที่ประกาศออกไป
 client-config    ค่าตั้งฝั่ง client พร้อม token budget
-download         ดาวน์โหลดน้ำหนักโมเดล (resume ได้)
+download         ดาวน์โหลดน้ำหนักโมเดล (resume ได้ · วนต่อเองจนขนาดครบ)
 help             วิธีใช้ทั้งหมดของตัวนั้น
 ```
+
+> **download หยุดเมื่อขนาดตรง ไม่ใช่เมื่อ curl คืน 0** (ตั้งแต่ v3.3.1)
+>
+> CDN ของ Hugging Face ตัดสตรีมกลางไฟล์ใหญ่ได้ (`curl: (92) ... CANCEL`) และ
+> `--retry` ของ curl ไม่ยิงซ้ำให้ เพราะไม่นับ error 92 เป็น transient — ของเดิม
+> จึงจบแบบเหลือไฟล์ครึ่งเดียวโดยไม่มีอะไรฟ้อง · ตอนนี้ resume ต่อเองจนครบ
+> (ปรับจำนวนรอบ: `FETCH_MAX_ATTEMPTS=40 ./xxx-single.sh download`)
+>
+> ถ้าอยากให้เร็วขึ้นมาก ติดตั้ง `aria2c` ไว้บนเครื่อง — ตัวสคริปต์เลือกใช้เองถ้ามี
+> เปิด 16 connection ขนานเลี่ยง throttle ต่อ connection ของ CDN:
+> `sudo apt install -y aria2`
 
 หลายตัวมีคำสั่งเสริมเฉพาะรุ่น เช่น `verify-files`, `prepare-runtime`, `props`, `bench`, `stress`, `test-text`, `test-reasoning`, `test-image`, `test-tools`, `test-tool-loop`, `doctor`, `sync-worker` — ดูด้วย `help` ของไฟล์นั้น
 
@@ -356,7 +367,7 @@ audit rules ใหม่ทั้งหมด: 35 scripts, errors=0, warnings=0
 
 **ลำดับการไหลเวียน:** LMDS deploy → ตัวที่พิสูจน์แล้ว publish ไป script-update (candidates) → promote ขึ้น repo นี้ (canonical) → ทุกเครื่อง `lmds recipes --sync` จากที่นี่ · LiteGate เสิร์ฟ+วัดความสามารถจริง
 
-ทุก controller ที่นี่ (vLLM และ llama.cpp) ใช้มาตรฐาน v3.3.0 เหมือนกัน — มี `--jinja` สำหรับ tool-calling template ของ llama.cpp, `info` command, standard override option ทั้งหมด
+ทุก controller ที่นี่ (vLLM และ llama.cpp) ใช้มาตรฐาน v3.3.1 เหมือนกัน — มี `--jinja` สำหรับ tool-calling template ของ llama.cpp, `info` command, standard override option ทั้งหมด
 
 ## เอกสารอื่น
 

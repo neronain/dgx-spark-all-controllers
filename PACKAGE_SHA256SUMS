@@ -1,16 +1,16 @@
-# DGX Spark Controller Collection v3.3.0 - SHA-256
+# DGX Spark Controller Collection v3.3.1 - SHA-256
 # Designed by neronain - https://www.facebook.com/neronain.minidev
 #
 2b7ce499c39e35605abb0b7e7f32fe9e450bc05a5e343c8262a416eb325be5c1  ADDING-GENERATED-CONTROLLERS.md
 5d59283bcbb82c9ee67ac5c908eff782c8db5adc8617a2528086429ff12d1c07  AUDIT_REPORT.md
-d1a8fa315abfeb0c42451ae8bb6d495e4f75be1d1096a1fd489031fbd9dba1f6  CHANGELOG.md
-d505b7ac57fd42df22c2c65d3e23629c527e1c55ff1beadd1dec7965da790f71  MANIFEST.txt
-5b65c8de8d0e85f0cfa083c393794c33ae2175168e07ecd916195ea6540a5deb  README.en.md
-b459368b7b3648ff792c00b5403dce1104a589bef42cf9261f37645c927e651c  README.md
+8be1e4af89109f567ddeb46a94f2eff39e8e0525f92958f1af36004cc3f75bc9  CHANGELOG.md
+17d0c161ec45cddeaea71d3ddb043057df96f2b8f06438fae73a6fbf9f8b9ec4  MANIFEST.txt
+a4a23f5f365da1353f2c198666ee8100b49694218cc5fab6d5bfca464070fbf8  README.en.md
+329ffbf7ac2f9d1b7ac124c39467c3f43965e8ce36310fbe298a3f15a5dfc773  README.md
 2635b7d7a5671ee3125944b9f423268b59902b862429c777d73980a30d6b003c  SKILL_UPDATE.md
 8fa274cdeee152c9fcf7a3184420284c6b91d785cf3cfd84cf3bdf04c798b9e5  audit-controllers.py
 8348808e09c143a86ec6f9a12c67f592aec127460ef19bf653814a3bee357108  deepseek-v4-flash-nvfp4-stacked.sh
-8b25cd589af154f882dd2fdfb037a6538fa4c4d3cf1a79e1d99da679012c3e7a  gemma-4-12b-it-gguf-single.sh
+38589dfbc94896d1d3ba65bcafb9fc51304f0a1c8fcbc56f4db0bae9e692a30a  gemma-4-12b-it-gguf-single.sh
 0dad3cfcf870dea64d509832496840a0f9822901fee9f3926bfbb2309b4d4999  gemma-4-26b-a4b-it-gguf-single.sh
 3e6673384a15bbc395ff682266fa3d637ba6b2b147a2170683eaea4249895fc9  gemma-4-31b-it-uncensored-heretic-q8_0-dgx-spark.sh
 2e2019565968be6abe1d46c8cb25b006499c0757fc56bc81cc89afbd1fb9351b  gemma-4-31b-it-uncensored-single.sh
@@ -18,26 +18,26 @@ b9c93ba64e10a433b954510c34b69587d32d0783938984c4c8fa96f2003e7478  gemma4-26-a4b-
 16592e2a5b5483ad70f7a02ba37e1194b7445861b3348aed426bedbc9052fb62  gemma4-31b-single.sh
 3326e8972a4d6536f5d0061c50bc0d31e6ea5590d31293d59551a74ab1ea192f  gemma4-31b-stacked.sh
 2353147a10963b7942dec0e28275a74b67a1ba8563583adde96ea5ef336a69cd  gpt-oss-120b-f16-single.sh
-647018ceea332a07586f4a273c1e943afc85845c746e9d93eac418b950eb3323  huihui-ai-qwen3-coder-next-abliterated-gguf-single.sh
-f4a45e7cc52742c03d7e91e1f2309cb56cd9dc3ac98ade8eeab169c9cddc8f45  huihui-gpt-oss-120b-abliterated-mxfp4-moe-gguf-single.sh
-7ccf548ea9f2769394746ea5ff75d36097c4da35a1802d7a0d758f12fa7c5cc3  huihui-qwen3-coder-30b-a3b-instruct-abliterated-gguf-single.sh
+b1f616e30e786d5194df818d7e9d1873b92a9ea29e266b5327631faf5c2e96fd  huihui-ai-qwen3-coder-next-abliterated-gguf-single.sh
+1f2f14d462e664a14fe0e5880b3bc9914c41b2187647daf4bd7ed7fd38c3da23  huihui-gpt-oss-120b-abliterated-mxfp4-moe-gguf-single.sh
+32b7369bd349830917eb897eb3fa7069d7fc5a110060962b580edae67605ef97  huihui-qwen3-coder-30b-a3b-instruct-abliterated-gguf-single.sh
 1f27d61e65c086b415d85152a4b8dcefd5517d97028488adeefc8baeb77b403e  install-canonical.sh
 5c1f5c49cf540af4737529a3d863fc7b27b353316253e0c0cf8a3971e4e3cfb8  llama33-70b-nvfp4-single.sh
 82f797fe08d95450ce3fde34e64e6351eab98d59332d30f52fa98242f6097fa5  minimax-m27-luke-stacked.sh
 eedaa986c89697f193d99b1ffa083d75307c311e565026915be5d611f0fece56  minimax-m3-v0-nvfp4-reap50-stacked.sh
-735affc3011e57be365ba4d1327f85a5309504ed105295900c905b1c2bb39530  muse-glimmer-30b-gguf-single.sh
+176432c54ee7b47852094ebd1ccd220c55f95535f7a581e69d5452112ce12efe  muse-glimmer-30b-gguf-single.sh
 7c353ea24b5278414b96f8a2f2606160c0604d7b8e4ede61ebf67a4b97192075  nemotron-3-super-single.sh
 481e0d02d046b40e018152d4a389edd6813a09d89341e0fecce3d8f5bfe1da9c  nemotron-omni-aeon-single.sh
-c888d33f55c94d524e5f2513e4c667e6c90e3d901b9b916a5e4f91293f49ea16  ornith-1-5-35b-a3b-abliterated-gguf-single.sh
+aafe506a3fbc20d6ca10a55d34b825522d4fc283eb6d3aa739387b223f0e2cbf  ornith-1-5-35b-a3b-abliterated-gguf-single.sh
 ef4cfd62e16222291e27027e2b5a249f4553f37599f0d20bf8536a0ec3d69ab4  ornith-1.0-35b-bf16-dgx-spark.sh
 ec4a7fa33c3e0f79c911c984996cfcb743a986cd4d374a1abcf27d7016e324a3  ornith-1.0-35b-uncensored-heretic-nvfp4-fp8dense-gb10-dgx-spark.sh
-b3f3a79900c05f66fb8d3f5ff4f4781ac1ac4474b908e89015b62f52661a9fea  qwen3-6-35b-a3b-gguf-single.sh
-d228843bd0c7c65cdd47ef1885701588ef9ceb229ecae3ac0447160b0b19ecd2  qwen3-6-40b-claude-4-6-opus-deckard-heretic-uncensored-thinking-neo-code-di-imatrix-max-gguf-single.sh
-a76932c4e4679159872486e58574ef7584c1da6146441676fb7dc26cc0e98189  qwen3-8-27b-gguf-single.sh
-a51efb64a3ee4665cca2531dfa187089c31e3e3dabeb0ff793399dd2785dbddd  qwen3-8-27b-heretic-abliterated-uncensored-gguf-single.sh
-6763be2a940b2e8db3aeacf487d9499a3b065d1e47b74a10111041bb08f4ee75  qwen3-8-27b-uncensored-gguf-single.sh
-d1008dbf82f35847ce43b133820bfe403c833cb7b94c2d8f5ced033d515998d0  qwen3-coder-30b-a3b-instruct-gguf-single.sh
-68c8ffcef283513feeef45cbdcdd03297ec1a1cafaee92da0994ec1dce2486e2  qwen3-coder-next-gguf-single.sh
+800c6bde7c1dbf87ccc924ee99d0b93002fc220c2aedf878bb01248ccf66db6a  qwen3-6-35b-a3b-gguf-single.sh
+a8f1deec654981d5d758dceb77926a8cb5f8012feae8cddea013c6ef7a844f8c  qwen3-6-40b-claude-4-6-opus-deckard-heretic-uncensored-thinking-neo-code-di-imatrix-max-gguf-single.sh
+434b9a71cb4ef4ce7d58771f4d5773c277f978c9a630dd95f0d6742140404a22  qwen3-8-27b-gguf-single.sh
+cf5b59c45b1f018a99d2bbc54edfe9ddf89dbed9333055286594f65cb52f3cff  qwen3-8-27b-heretic-abliterated-uncensored-gguf-single.sh
+642f84d6e245c2111da289e0d249f377a8c1b8f8059dc337c77143431ff455f6  qwen3-8-27b-uncensored-gguf-single.sh
+4f1a9aa8adeb16a6e767789e81c89632b008edd6e130ae67196e8138da754a75  qwen3-coder-30b-a3b-instruct-gguf-single.sh
+7efb36dad74fa583b8978da736e5128c8f653f2bac26c6310beb4d0be48f17e0  qwen3-coder-next-gguf-single.sh
 bba0f0289811d9307c1badf399cd4a360aa0f1546a5f72feda3d2c841b1b87a1  qwen3-coder-next-nvfp4-gb10-dgx-spark.sh
 f7eb2b06d238800973bb133abeb78d8b133a3b9cdfcefbbb29314fb9b1c092f3  qwen3-coder-next-single.sh
 1782ed5093e4b1458565691e64675a4c9cc8b09e9618e260f3fe8c113ac21c3a  qwen3-vl-32b-instruct-1m-bf16-dgx-spark.sh

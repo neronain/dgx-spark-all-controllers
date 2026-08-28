@@ -232,33 +232,85 @@ download() {
         rm -f "${MODEL_DIR}/${MODEL_FILES[$i]}"
       fi
     fi
-    fetch_one "${MODEL_URLS[$i]}" "${MODEL_DIR}/${MODEL_FILES[$i]}"
+    fetch_one "${MODEL_URLS[$i]}" "${MODEL_DIR}/${MODEL_FILES[$i]}" "${EXPECTED_SIZES[$i]:-}"
   done
   echo "download complete: ${MODEL_DIR} (${#MODEL_FILES[@]} ไฟล์)"
 }
 
-# ดึงหนึ่งไฟล์ · ใช้ aria2c ถ้ามี (เปิดหลาย connection พร้อมกัน) ไม่งั้นถอยไป curl
-# ทำไม: CDN บางเจ้า (เจอจริงกับ bartowski) throttle ต่อ connection เหลือ ~150KB/s
-# ทั้งที่เครื่องมีแบนด์วิดท์เหลือ — 63GB จะกลายเป็น 6 ชั่วโมงทั้งที่ควรเสร็จใน 20 นาที
-# aria2c -x16 เปิด 16 ช่องขนานจึงเลี่ยง throttle ต่อ connection ได้ · ทั้งคู่ resume ได้
-# (ไฟล์ที่โหลดค้างไว้ทำต่อ ไม่เริ่มใหม่) และ verify_files เช็ก size ต่อทุกครั้งอยู่แล้ว
-fetch_one() {
-  local url="$1" out="$2"
-  if command -v aria2c >/dev/null 2>&1; then
-    aria2c -x16 -s16 -k1M --continue=true --file-allocation=none \
-      --connect-timeout=20 --timeout=60 --max-tries=5 --retry-wait=5 \
-      --lowest-speed-limit=10K \
-      ${HF_TOKEN:+--header="Authorization: Bearer $HF_TOKEN"} \
-      -d "$(dirname "$out")" -o "$(basename "$out")" "$url" && return 0
-    echo "aria2c ล้ม — ถอยไป curl"
+# ขนาดไฟล์เป็นไบต์ · GNU กับ BSD ใช้คนละ flag และ DGX OS/Ubuntu เป็น GNU แต่เครื่อง
+# ที่รันเทสอาจเป็น macOS — ถามทั้งสองแบบแล้วค่อยยอมแพ้เป็น 0 (ไฟล์ยังไม่มี)
+file_size() {
+  stat -c %s "$1" 2>/dev/null || stat -f %z "$1" 2>/dev/null || echo 0
+}
+
+# --retry-all-errors มีตั้งแต่ curl 7.71 (2020) · Ubuntu 20.04 มากับ 7.68 ซึ่งไม่มี
+# แล้ว curl จะตายทันทีด้วย "option --retry-all-errors: is unknown" — ถามก่อนใช้
+# ดีกว่าเดาจากเลขเวอร์ชัน เพราะ distro แก้ patch ย้อนหลังกันบ่อย
+curl_retry_all() {
+  if [[ -z "${_CURL_RETRY_ALL+x}" ]]; then
+    # เทียบด้วย case ไม่ใช่ท่อไปหา grep เพราะ grep ที่ออกก่อนทำให้ curl โดน SIGPIPE
+    # ใต้ `set -o pipefail` ทั้ง pipeline จึงคืนค่าไม่เป็นศูนย์แบบสุ่ม ๆ
+    case "$(curl --help all 2>/dev/null)" in
+      *--retry-all-errors*) _CURL_RETRY_ALL="--retry-all-errors" ;;
+      *)                    _CURL_RETRY_ALL="" ;;
+    esac
   fi
-  # --speed-limit/--speed-time = กันค้างตาย: สลับเน็ต/สาย NAT หลุด ทำให้ TCP ค้างใน recv()
-  # ไม่มี error ไม่มี timeout --retry จึงไม่เคยทำงาน — process ค้างถาวรจน stop ไม่ได้
-  # ต่ำกว่า 10KB/s ติดกัน 60s = ถือว่าตาย ยิง error ให้ --retry ทำงาน แล้ว -C - resume ต่อ
-  curl -fL --retry 5 --retry-delay 5 -C - \
-    --connect-timeout 20 --speed-limit 10240 --speed-time 60 \
-    ${HF_TOKEN:+-H "Authorization: Bearer $HF_TOKEN"} \
-    -o "$out" "$url"
+  printf '%s' "$_CURL_RETRY_ALL"
+}
+
+FETCH_MAX_ATTEMPTS="${FETCH_MAX_ATTEMPTS:-20}"
+fetch_one() {
+  local url="$1" out="$2" want="${3:-}"
+  local attempt=0 rc have prev=-1
+
+  while :; do
+    attempt=$(( attempt + 1 ))
+    rc=1
+    if command -v aria2c >/dev/null 2>&1; then
+      rc=0
+      aria2c -x16 -s16 -k1M --continue=true --file-allocation=none \
+        --connect-timeout=20 --timeout=60 --max-tries=5 --retry-wait=5 \
+        --lowest-speed-limit=10K \
+        ${HF_TOKEN:+--header="Authorization: Bearer $HF_TOKEN"} \
+        -d "$(dirname "$out")" -o "$(basename "$out")" "$url" || rc=$?
+      (( rc == 0 )) || echo "  aria2c ล้ม (exit ${rc}) — ถอยไป curl"
+    fi
+    if (( rc != 0 )); then
+      # --speed-limit/--speed-time = กันค้างตาย: สลับเน็ต/สาย NAT หลุด ทำให้ TCP
+      # ค้างใน recv() ไม่มี error ไม่มี timeout --retry จึงไม่เคยทำงาน — process
+      # ค้างถาวรจน stop ไม่ได้ · ต่ำกว่า 10KB/s ติดกัน 60s = ถือว่าตาย ยิง error
+      # ให้ --retry ทำงาน แล้ว -C - resume ต่อ
+      rc=0
+      curl -fL --retry 5 --retry-delay 5 $(curl_retry_all) -C - \
+        --connect-timeout 20 --speed-limit 10240 --speed-time 60 \
+        ${HF_TOKEN:+-H "Authorization: Bearer $HF_TOKEN"} \
+        -o "$out" "$url" || rc=$?
+      (( rc == 0 )) || echo "  curl ล้ม (exit ${rc})"
+    fi
+
+    have="$(file_size "$out")"
+
+    # ไม่รู้ขนาดที่ควรได้ (HF ไม่บอก) → เชื่อ exit code อย่างเดียวเท่าที่ทำได้
+    if [[ -z "$want" ]]; then
+      (( rc == 0 )) && return 0
+      die "ดึงไฟล์ไม่สำเร็จ (exit ${rc}): ${url}"
+    fi
+
+    # ใหญ่เกินก็จบลูป — verify_files เป็นคนบอกวิธีแก้ (ลบแล้วโหลดใหม่) ไม่ใช่ที่นี่
+    (( have >= want )) && return 0
+
+    if (( attempt >= FETCH_MAX_ATTEMPTS )); then
+      die "$(basename "$out"): ลองต่อ ${attempt} รอบแล้วยังไม่ครบ (${have}/${want})
+โหลดต่อได้เลย (resume ต่อจากของเดิม):  $0 download"
+    fi
+    if (( have <= prev )); then
+      die "$(basename "$out"): resume แล้วไม่คืบหน้าเลย (ค้างที่ ${have}/${want})
+เน็ตหลุด หรือฝั่งต้นทางไม่รองรับ resume — ตรวจเน็ตแล้วรันใหม่:  $0 download"
+    fi
+    prev="$have"
+    echo "  หลุดกลางคัน ${have}/${want} ไบต์ — resume ต่อ (รอบที่ $(( attempt + 1 )))"
+    sleep 5
+  done
 }
 
 verify_files() {
@@ -268,7 +320,7 @@ verify_files() {
     [[ -f "$path" ]] || die "ยังไม่ได้ download (ไม่พบ $path) — รัน: $0 download"
 
     if [[ -n "${EXPECTED_SIZES[$i]}" ]]; then
-      actual_size="$(stat -c %s "$path" 2>/dev/null || stat -f %z "$path")"
+      actual_size="$(file_size "$path")"
       if [[ "$actual_size" != "${EXPECTED_SIZES[$i]}" ]]; then
         # ใหญ่เกิน กับ เล็กเกิน ต้องแก้คนละทาง — บอกผิดแล้วผู้ใช้ไปวนอยู่กับคำสั่งที่ไม่ช่วย
         #

@@ -1,4 +1,4 @@
-DGX Spark Controller Collection v3.3.0
+DGX Spark Controller Collection v3.3.1
 Designed by neronain - https://www.facebook.com/neronain.minidev
 
 Documentation
