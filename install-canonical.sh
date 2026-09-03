@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Install every controller into a target directory, backing up existing copies.
+# Install every controller in this directory into a target directory, backing up existing copies.
+# The set is discovered from *.sh (minus this repository's own tools) — nothing to keep in sync.
 # Designed by neronain · https://www.facebook.com/neronain.minidev
 set -Eeuo pipefail
 
@@ -8,29 +9,21 @@ TARGET="${1:-${HOME}}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP="${TARGET}/controller-backups/${STAMP}"
 
-controllers=(
-  deepseek-v4-flash-nvfp4-stacked.sh
-  gemma-4-26b-a4b-it-gguf-single.sh
-  gemma-4-31b-it-uncensored-heretic-q8_0-dgx-spark.sh
-  gemma-4-31b-it-uncensored-single.sh
-  gemma4-26-a4b-q8xl-single.sh
-  gemma4-31b-single.sh
-  gemma4-31b-stacked.sh
-  gpt-oss-120b-f16-single.sh
-  llama33-70b-nvfp4-single.sh
-  minimax-m27-luke-stacked.sh
-  nemotron-3-super-single.sh
-  nemotron-omni-aeon-single.sh
-  ornith-1.0-35b-bf16-dgx-spark.sh
-  ornith-1.0-35b-uncensored-heretic-nvfp4-fp8dense-gb10-dgx-spark.sh
-  qwen3-coder-next-nvfp4-gb10-dgx-spark.sh
-  qwen3-coder-next-single.sh
-  qwen3-vl-32b-instruct-1m-bf16-dgx-spark.sh
-  qwen3-vl-32b-thinking-single.sh
-  qwen36-hauhau-q6kp-single.sh
-  redteam-modelctl.sh
-  vllm-stackctl.sh
-)
+# Controllers are discovered, not listed.
+#
+# The hand-written list below fell behind twice: on 2026-08-28 it named 21 files while the
+# directory held 35, so `install-canonical.sh` silently installed 60% of the collection and
+# reported success. verify-all.sh already discovers controllers the same way; the two must agree.
+tools=("verify-all.sh" "install-canonical.sh")
+controllers=()
+for path in "$ROOT"/*.sh; do
+  name="$(basename "$path")"
+  skip=""
+  for tool in "${tools[@]}"; do [[ "$name" == "$tool" ]] && skip=1; done
+  [[ -n "$skip" ]] && continue
+  controllers+=("$name")
+done
+(( ${#controllers[@]} > 0 )) || { echo "ERROR: no controllers found in ${ROOT}" >&2; exit 1; }
 
 mkdir -p "$TARGET" "$BACKUP"
 

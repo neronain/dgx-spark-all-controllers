@@ -331,7 +331,7 @@ RUNTIME_LABEL="${RUNTIME_LABEL:-vLLM (Docker, stacked)}"
 MODEL_FEATURES="${MODEL_FEATURES:-reasoning · tools · tool-loop · 1M ctx}"
 ```
 
-Controller ทั้ง 21 ตัวใน repo นี้ standardize ที่ `SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"` เพื่อให้ audit และ verify ตรวจได้ว่าไฟล์ไหนตกรุ่น
+Controller ที่เขียนมือ 21 ตัวใน repo นี้ standardize ที่ `SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"` ส่วนอีก 21 ตัวที่ LMDS สร้างประกาศรุ่นของ LMDS (0.5.1 ณ 2026-09-03) แทน เพื่อให้ audit และ verify ตรวจได้ว่าไฟล์ไหนตกรุ่น
 
 ### 7.2 Fail fast
 
@@ -1317,7 +1317,7 @@ esac
 - [ ] ไม่มี memory leak หรือ hang ใน soak test
 - [ ] Firewall และ authentication ได้รับการพิจารณา
 - [ ] มีวิธี rollback image และ configuration
-- [ ] มี `SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"` และ label ของโมเดลครบ
+- [ ] มี `SCRIPT_VERSION` (3.1.0 สำหรับที่เขียนมือ / รุ่นของ LMDS สำหรับที่ LMDS สร้าง) และ label ของโมเดลครบ
 - [ ] มี `banner()` + `info()` และ dispatch case `info|banner)`
 - [ ] `info` แสดง model/runtime/features/context/API URL และ State (RUNNING/stopped) ถูกต้องทั้งตอนเปิดและปิด
 - [ ] Stacked controller มี `prompt_cluster_config()` วางถัดจาก `MASTER_IP`/`WORKER_IP`/`SSH_USER` และก่อนตัวแปร derived
@@ -1348,17 +1348,18 @@ first-hostname-ip           ใช้ IP ตัวแรกจาก hostname �
 deepseek-v4-flash-nvfp4-stacked.sh
 gemma4-31b-stacked.sh
 minimax-m27-luke-stacked.sh
+minimax-m3-v0-nvfp4-reap50-stacked.sh   (SGLang)
 vllm-stackctl.sh
 ```
 
 ### 25.2 `verify-all.sh`
 
-`verify-all.sh` เป็น gate สุดท้าย ครอบคลุม controller ทั้ง **21 ตัว** ใน repo และตรวจ:
+`verify-all.sh` เป็น gate สุดท้าย ครอบคลุม controller ทั้ง **42 ตัว** ใน repo และตรวจ:
 
 ```text
 bash -n ทุกไฟล์ (syntax)
 เรียก help ได้โดยไม่ค้าง
-เรียก info ได้ และ output มี "DGX Spark Controller" + ฟิลด์ Model/Runtime/Features/State
+เรียก info ได้ และ output มี "DGX Spark Controller" หรือ "LMDS controller" + ฟิลด์ Model/Runtime/Features/State
 network-info และ client-config ทำงานด้วย --context/--port/--advertise-ip
 ปฏิเสธ --port 70000 และ --context 0
 stacked ทุกตัวมี prompt_cluster_config

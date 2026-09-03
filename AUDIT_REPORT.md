@@ -1,4 +1,31 @@
-# Audit Report v3.1.0
+# Audit Report v3.4.0
+
+ตรวจเมื่อ 2026-09-03 · ออกแบบโดย neronain · <https://www.facebook.com/neronain.minidev>
+
+## ขอบเขต
+
+ไฟล์ `.sh` ทั้ง 44 ไฟล์ในรีโป (42 controller + 2 เครื่องมือ) ด้วย `bash -n`, `verify-all.sh` (help / info /
+network-info / client-config / ปฏิเสธ port 70000 และ context 0 / stacked ต้องมี `prompt_cluster_config`),
+`audit-controllers.py`, และสแกน IP/username ของผู้พัฒนา
+
+## ผล
+
+```text
+bash -n            : 44/44 ผ่าน
+verify-all.sh      : 42/42 ผ่าน (37 single-node, 5 stacked)
+audit-controllers  : Audited 42 scripts: errors=0, warnings=0
+--jinja (llama.cpp): 26/27 — ขาดเฉพาะ qwen3-coder-30b-a3b-instruct-gguf-single.sh (LMDS 0.3.0, ยังไม่ได้ rebuild)
+IP ผู้พัฒนา         : 0 ไฟล์ (single-node) · stacked ใช้ 10.100.152.1/2 เป็นค่าตั้งต้นที่เอกสารระบุไว้
+PACKAGE_SHA256SUMS : สร้างใหม่ ครอบทุกไฟล์ยกเว้นตัวเอง
+```
+
+รุ่นของ controller: ที่เขียนมือ 21 ตัวประกาศ `SCRIPT_VERSION=3.1.0` · ที่ LMDS สร้าง 21 ตัวประกาศรุ่นของ LMDS
+(20 ตัว 0.5.1 หลัง rebuild 2026-09-03 · `qwen3-coder-30b-a3b-instruct-gguf` ยัง 0.3.0) — banner จึงต่างกันสองแบบ
+("DGX Spark Controller" กับ "LMDS controller") และ `verify-all.sh` รับทั้งคู่
+
+---
+
+# ประวัติ — Audit Report v3.1.0
 
 ตรวจเมื่อ 2026-07-25 · ออกแบบโดย neronain · <https://www.facebook.com/neronain.minidev>
 

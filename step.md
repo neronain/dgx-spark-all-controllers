@@ -71,7 +71,7 @@ Notes:
 - `State` is derived from `http://127.0.0.1:${API_PORT}/health`. It shows `RUNNING` when that health probe succeeds and `stopped` otherwise.
 - `API (v1)` shows the advertised URL, so it can be pasted straight into a client such as Cline.
 - `info` is read-only, needs no arguments, and never prompts. It is safe to run at any time, including while the server is serving traffic.
-- Every controller in this repository declares `SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"` and supports `info`, so the same command identifies any of them.
+- Every hand-written controller in this repository declares `SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}"` (LMDS-generated ones carry the LMDS version) and all support `info`, so the same command identifies any of them.
 
 `info` reports intent and liveness only. It does not replace `status` or the functional tests in section 7.
 

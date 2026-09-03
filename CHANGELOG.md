@@ -1,5 +1,59 @@
 # Changelog
 
+## 3.4.0 — 2026-09-03
+
+ฟลีตจริง 13 เครื่อง rebuild ทุก controller ด้วย LMDS 0.5.1 แล้ว publish กลับเข้าคลัง · ออกแบบโดย neronain ·
+<https://www.facebook.com/neronain.minidev>
+
+### Added — controller ใหม่ 8 ตัว (ทุกตัวเสิร์ฟทราฟฟิกจริงแล้ว)
+
+| controller | เครื่องที่รัน | หมายเหตุ |
+|---|---|---|
+| `qwen3-6-35b-a3b-nvfp4-single.sh` | dgx-spark04 | vLLM v0.28.0 สูตร DGX Spark ของ NVIDIA ครบ (fp8 KV · flashinfer · marlin MoE · MTP 3) · ผ่าน 9 ฟีเจอร์ · 65 tok/s เดี่ยว, 159 tok/s @6 |
+| `qwen3-5-122b-a10b-nvfp4-single.sh` | spark-worker | Sehyo · MTP 2 · parser qwen3_xml/qwen3 · ผ่าน 9 ฟีเจอร์ · 30 tok/s |
+| `qwen3-coder-next-nvfp4-gb10-single.sh` | spark-head | แทน `qwen3-coder-next-nvfp4-gb10-dgx-spark.sh` (alt-source ที่เขียนมือ) — ตัวนี้มี `ENGINE_ENV` marlin ที่ทำให้ NVFP4 MoE รันบน sm_121 ได้ · 63 tok/s |
+| `qwen3-6-35b-a3b-mtp-gguf-single.sh` | dgx-spark02 | Q8 + MTP draft (`--spec-type draft-mtp`) · vision · tools · 128K |
+| `qwen3-6-35b-a3b-uncensored-hauhaucs-aggressive-single.sh` | dgx-spark02 | Q8 · vision · tools · 128K |
+| `gemma-4-31b-it-abliterated-gguf-single.sh` | msi-5 | |
+| `gemma4-26b-a4b-qat-uncensored-hauhaucs-balanced-mtp-single.sh` | spark-head | MTP · vision |
+| `qwen3-6-35b-a3b-uncensored-heretic-native-mtp-preserved-apex-gguf-single.sh` | spark-worker | MTP · vision |
+
+### Changed — 12 ตัวที่ LMDS สร้าง รีเฟรชจากเครื่องที่รันจริง (LMDS 0.5.1)
+
+`gemma-4-12b-it-gguf` · `huihui-ai-qwen3-coder-next-abliterated-gguf` · `huihui-gpt-oss-120b-…` ·
+`huihui-qwen3-coder-30b-…` · `muse-glimmer-30b-gguf` · `ornith-1-5-35b-a3b-abliterated-gguf` ·
+`qwen3-6-35b-a3b-gguf` · `qwen3-6-40b-…-imatrix-max-gguf` · `qwen3-8-27b-gguf` ·
+`qwen3-8-27b-heretic-abliterated-uncensored-gguf` · `qwen3-8-27b-uncensored-gguf` · `qwen3-coder-next-gguf`
+
+- **ทุกตัวมี `--jinja` แล้ว** — รุ่น 0.3.0 ที่อยู่ในคลัง 8 ตัวไม่มี ทำให้ tool calling เงียบทั้งที่ template รองรับ
+  (README เดิมอ้างว่ามีทุกตัว)
+- `--image-min-tokens 1024` สำหรับ vision · `stop` รอ process จบจริงแล้ว SIGKILL ถ้าไม่ยอม · บล็อก `bundle.env`
+  อยู่เหนือค่าตั้งต้นทุกตัว · `EXTRA_SERVE_ARGS_DEFAULT` สำหรับแฟล็กเพิ่ม · `explain_crash()` ใน vLLM
+- header ของตัว vLLM พกค่าที่พิสูจน์แล้วจาก `lmds set` (image digest, parser, ENGINE_ENV, extra args) —
+  LMDS 0.5.1 พับให้ตอน publish · ค่าของเครื่อง (port, context, gpu-util) ยังเป็นค่าตั้งต้น override ได้เหมือนเดิม
+
+### Removed
+
+- `qwen3-coder-next-nvfp4-gb10-dgx-spark.sh` — alt-source ที่เขียนมือ ไม่มี env ที่จำเป็นบน GB10 · แทนด้วยตัวที่พิสูจน์แล้วข้างบน
+
+### Fixed — เอกสารและเครื่องมือ
+
+- `install-canonical.sh` ค้นหา controller จากไดเรกทอรีเหมือน `verify-all.sh` — รายชื่อที่เขียนมือติดตั้งได้ 21 จาก 35
+  ตัวโดยรายงานว่าสำเร็จ
+- 4 ตัวที่เขียนมือ (`gemma4-26-a4b-q8xl`, `gpt-oss-120b-f16`, `nemotron-omni-aeon`, `qwen3-coder-next-single`)
+  มี IP ของเครื่องผู้พัฒนาในตัวอย่าง `client-config` → เปลี่ยนเป็น `192.0.2.10` (TEST-NET)
+- `README.en.md` บอกว่ามี 22 ตัวมาตั้งแต่ 3.2.0 และไม่มีรายชื่อโมเดล → 42 พร้อมรายชื่อครบ · "Fabric discovery"
+  ระบุรุ่นผิด (3.3.0 → 3.2.0)
+- README ไทย: ตัวอย่าง banner บอก v3.3.1 ทั้งที่ไม่มี controller ตัวไหนพิมพ์ค่านั้น (ที่เขียนมือพิมพ์ 3.1.0, ที่ LMDS
+  สร้างพิมพ์รุ่นของ LMDS) · ข้ออ้างเรื่อง `--jinja` ระบุข้อยกเว้นแล้ว
+- `ADDING-GENERATED-CONTROLLERS.md` ไม่บอกว่า "เขียนมือทุกตัว" อีก และอธิบาย header ที่ฟลีตอ่าน
+- `AUDIT_REPORT.md` มีผลตรวจรุ่นนี้ · `SKILL_UPDATE.md` / `skills_Strack.md` / `step.md` ไม่อ้าง "21 ตัว / 3.1.0 ทุกตัว" แล้ว
+
+ยังค้าง: `qwen3-coder-30b-a3b-instruct-gguf-single.sh` เป็น LMDS 0.3.0 ไม่มี `--jinja` — ไม่มีเครื่องไหนรันอยู่ให้
+rebuild จึงคงไว้พร้อมหมายเหตุ
+
+ตรวจแล้ว: `verify-all.sh` 42/42 ผ่าน · `audit-controllers.py` errors=0 warnings=0 · ไม่มี IP/username ของผู้พัฒนาใน single-node ทุกตัว
+
 ## 3.3.1 — 2026-08-28
 
 ดาวน์โหลดที่ถูกตัดกลางคันไม่ถูกนับว่าสำเร็จอีก · ออกแบบโดย neronain ·

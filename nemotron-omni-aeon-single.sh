@@ -1171,7 +1171,7 @@ Common options:
 Examples:
   $(basename "$0") start --context 65536 --port 8001
   $(basename "$0") start --interface enp1s0 --port 8000
-  $(basename "$0") client-config --advertise-ip 192.168.101.127
+  $(basename "$0") client-config --advertise-ip 192.0.2.10
   $(basename "$0") network-info
 
   $(basename "$0") download

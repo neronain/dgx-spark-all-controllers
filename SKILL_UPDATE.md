@@ -27,7 +27,8 @@ pipefail-safe feature detection
 ## Added in 3.1.0
 
 ```text
-SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}" in every controller
+SCRIPT_VERSION="${SCRIPT_VERSION:-3.1.0}" in every hand-written controller
+  (LMDS-generated controllers carry the LMDS version instead — 0.5.1 as of 2026-09-03)
 ASCII banner with a designer credit line
 info | banner command: model, model ID, runtime, features, context,
   advertised API v1 URL, live state (probes /health) and port
@@ -69,8 +70,8 @@ python3 audit-controllers.py "$HOME"
 Expected result for this collection:
 
 ```text
-Audited 21 scripts: errors=0, warnings=0
-All 21 DGX controllers passed static validation.
+Audited 42 scripts: errors=0, warnings=0
+All 42 DGX controllers passed static validation.
 ```
 
 See `skills_Strack.md` for the full stacked-deployment playbook and controller skeleton.
